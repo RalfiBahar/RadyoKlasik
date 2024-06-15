@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Dashboard</title>
+    <script>
+      let intervalId;
+
+      function startRecording() {
+        fetch("/start", { method: "POST" }).then((response) => {
+          if (response.ok) {
+            intervalId = setInterval(updateRecordingTime, 1000);
+          }
+        });
+      }
+
+      function stopRecording() {
+        fetch("/stop", { method: "POST" }).then((response) => {
+          if (response.ok) {
+            clearInterval(intervalId);
+            document.getElementById("recording-time").innerText =
+              "Recording stopped.";
+          }
+        });
+      }
+
+      function updateRecordingTime() {
+        fetch("/status")
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.is_recording) {
+              const elapsedTime = Math.floor(data.elapsed_time);
+              const minutes = Math.floor(elapsedTime / 60);
+              const seconds = elapsedTime % 60;
+              document.getElementById(
+                "recording-time"
+              ).innerText = `Recording: ${minutes}m ${seconds}s`;
+            }
+          });
+      }
+    </script>
+  </head>
+  <body>
+    <h1>Admin Dashboard</h1>
+    <p>Welcome to the admin dashboard!</p>
+    <a href="{{ url_for('main.logout') }}">Logout</a>
+    <h1>MP3 Stream Recorder</h1>
+    <form
+      action="javascript:void(0);"
+      method="post"
+      onsubmit="startRecording()"
+    >
+      <button type="submit">Start Recording</button>
+    </form>
+    <form action="javascript:void(0);" method="post" onsubmit="stopRecording()">
+      <button type="submit">Stop Recording</button>
+    </form>
+    <p id="recording-time">Not recording.</p>
+  </body>
+</html>
