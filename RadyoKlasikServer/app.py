@@ -1,6 +1,7 @@
-from flask import Flask
+from flask import Flask, Blueprint
 from flask_login import LoginManager
 from models import User
+from routes import auth, recording
 
 def create_app():
     app = Flask(__name__)
@@ -8,14 +9,18 @@ def create_app():
 
     login_manager = LoginManager()
     login_manager.init_app(app)
-    login_manager.login_view = 'main.login'
+    login_manager.login_view = 'auth.login'
 
     @login_manager.user_loader
     def load_user(user_id):
         return User.get(user_id)
 
-    from routes import bp as main_bp
-    app.register_blueprint(main_bp)
+    from routes.auth import auth_bp
+    from routes.recording import recording_bp
+    from routes.dashboard import dashboard_bp
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(recording_bp, url_prefix='/recording')
+    app.register_blueprint(dashboard_bp)
 
     return app
 
