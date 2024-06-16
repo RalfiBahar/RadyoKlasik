@@ -7,6 +7,8 @@ import requests
 from pydub import AudioSegment
 from io import BytesIO
 import datetime
+import urllib
+import http
 
 recording_bp = Blueprint('recording', __name__)
 
@@ -100,3 +102,37 @@ def get_recordings_list():
         return jsonify(recordings_list)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+def get_final_mp3_url(base_url):
+    try:
+        parsed_url = urllib.parse.urlparse(base_url)
+        scheme = parsed_url.scheme
+        conn = http.client.HTTPConnection(parsed_url.netloc) if scheme == "http" else http.client.HTTPSConnection(parsed_url.netloc)
+        path = parsed_url.path + "?" + parsed_url.query if parsed_url.query else parsed_url.path
+        conn.request("GET", path)
+        response = conn.getresponse()
+        while response.status in [301, 302, 303, 307, 308]:
+            redirect_url = response.getheader('Location')
+            if not redirect_url:
+                break
+            
+            print(f"Redirecting to: {redirect_url}")
+            return redirect_url
+    
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
+
+@recording_bp.route('/get_redirect', methods=['GET'])
+def get_redirect_url():
+    base_url = 'http://stream.radiojar.com/bw66d94ksg8uv'
+    if not base_url:
+        return jsonify({'error': 'No URL provided'}), 400
+
+    final_url = get_final_mp3_url(base_url)
+    if final_url:
+        return jsonify({'url': final_url})
+    else:
+        return jsonify({'error': 'Failed to retrieve the redirect MP3 stream URL'}), 500
+
+    
