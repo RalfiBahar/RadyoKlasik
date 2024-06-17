@@ -36,3 +36,4 @@ yarn-error.*
 
 .env
 recorded_stream*
+*.mp3

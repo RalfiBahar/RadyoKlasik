@@ -3,6 +3,19 @@
   <head>
     <meta charset="utf-8" />
     <title>Dashboard</title>
+    <style>
+      .artwork {
+        width: 100px;
+        height: 100px;
+        margin: 10px;
+        cursor: pointer;
+        border: 2px solid transparent;
+      }
+
+      .artwork.selected {
+        border: 2px solid blue;
+      }
+    </style>
     <script>
       let intervalId;
 
@@ -15,7 +28,13 @@
       }
 
       function stopRecording() {
-        fetch("recording/stop", { method: "POST" }).then((response) => {
+        fetch("recording/stop", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: selectedArtwork ? `existing-artworks=${selectedArtwork}` : "",
+        }).then((response) => {
           if (response.ok) {
             clearInterval(intervalId);
             document.getElementById("recording-time").innerText =
@@ -38,6 +57,34 @@
             }
           });
       }
+
+      function fetchArtworks() {
+        fetch("recording/get_artworks")
+          .then((response) => response.json())
+          .then((data) => {
+            const container = document.getElementById("artworks-container");
+            container.innerHTML = "";
+            data.forEach((artwork) => {
+              const img = document.createElement("img");
+              console.log(artwork);
+              img.src = `/static/assets/thumbnails/${artwork}`;
+              img.classList.add("artwork");
+              img.onclick = () => selectArtwork(img, artwork);
+              container.appendChild(img);
+            });
+          });
+      }
+
+      function selectArtwork(img, artwork) {
+        const artworks = document.querySelectorAll(".artwork");
+        artworks.forEach((a) => a.classList.remove("selected"));
+        img.classList.add("selected");
+        selectedArtwork = artwork;
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        fetchArtworks();
+      });
     </script>
   </head>
   <body>
@@ -56,5 +103,20 @@
       <button type="submit">Stop Recording</button>
     </form>
     <p id="recording-time">Not recording.</p>
+
+    <h2>Upload New Artwork</h2>
+    <form
+      action="recording/upload_artwork"
+      method="post"
+      enctype="multipart/form-data"
+    >
+      <input type="file" name="artwork" accept="image/*" />
+      <button type="submit">Upload Artwork</button>
+    </form>
+
+    <h2>Select Existing Artwork</h2>
+    <div id="artworks-container">
+      <!-- Artworks will be populated by JavaScript -->
+    </div>
   </body>
 </html>
