@@ -44,3 +44,7 @@ recording.cpython-312.pyc
 *.png
 *.jpg
 /RadyoKlasikServer/routes/__pycache__
+pycache/*
+__pycache__/
+*.py[cod]
+

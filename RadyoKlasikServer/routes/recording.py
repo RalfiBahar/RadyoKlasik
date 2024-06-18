@@ -16,6 +16,7 @@ from werkzeug.utils import secure_filename
 import hashlib
 from sqlalchemy.orm import Session
 from models.recording import Recording, SessionLocal
+import datetime
 
 recording_bp = Blueprint('recording', __name__)
 
@@ -118,7 +119,8 @@ def stop_recording():
             album='',
             artwork=artwork_path,
             duration=recording_duration // 1000,  # duration in seconds
-            size=recording_size #in MB
+            size=recording_size, #in MB
+            date=datetime.datetime.utcnow()
         )
         db.add(new_recording)
         db.commit()
@@ -195,6 +197,7 @@ def get_recordings_list():
             'artwork': recording.artwork,
             'duration': recording.duration,
             'size': recording.size,
+            'date': recording.date,
             'stream': url_for('recording.get_recording', filename=os.path.basename(recording.filename))
         }
         for recording in recordings
@@ -342,7 +345,6 @@ def get_file_hash(file_content):
         return hasher.hexdigest()    
 
 @recording_bp.route('/replace', methods=['POST'])
-@recording_bp.route('/replace', methods=['POST'])
 def replace_recording():
     recording_id = request.form.get('recording_id')
     if 'replacement' not in request.files:
@@ -360,7 +362,6 @@ def replace_recording():
         replacement_path = os.path.join(recordings_dir, existing_recording.filename)
         file.save(replacement_path)
 
-        # Update recording details
         recording_size = os.path.getsize(replacement_path) / (1024 * 1024)  # size in MB
 
         audio = MP3(replacement_path, ID3=ID3)
@@ -374,6 +375,7 @@ def replace_recording():
         existing_recording.title = title
         existing_recording.artist = artist
         existing_recording.album = album
+        #existing_recording.date = datetime.datetime.utcnow() UNCOMMENT IF YOU WANT TO CHANGE DATE 
 
         # Update artwork if present in the new file
         for tag in audio.tags.values():

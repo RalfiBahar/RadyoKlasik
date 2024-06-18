@@ -110,9 +110,7 @@
           .then((data) => {
             const container = document.getElementById("recordings-container");
             container.innerHTML = "";
-            data.recordings.sort(
-              (a, b) => new Date(b.filename) - new Date(a.filename)
-            );
+            data.recordings.sort((a, b) => new Date(b.date) - new Date(a.date));
             data.recordings.forEach((recording) => {
               const div = document.createElement("div");
               div.classList.add("recording");

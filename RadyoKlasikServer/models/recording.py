@@ -1,6 +1,7 @@
-from sqlalchemy import create_engine, Column, String, Integer, Float
+from sqlalchemy import create_engine, Column, String, Integer, Float, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+import datetime
 
 DATABASE_URL = "sqlite:///recordings.db"
 
@@ -19,5 +20,7 @@ class Recording(Base):
     artwork = Column(String)
     duration = Column(Integer)
     size = Column(Float)
+    date = Column(DateTime, default=datetime.datetime.utcnow)
+
 
 Base.metadata.create_all(bind=engine)
