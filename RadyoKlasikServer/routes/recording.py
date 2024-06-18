@@ -206,7 +206,7 @@ def get_recordings_list():
             if os.path.isfile(file_path):
                 file_metadata = get_metadata(file_path)
                 recordings_list.append({
-                    'id': get_file_hash(file_metadata['title'].encode('utf-8') + file_metadata['artist'].encode('utf-8')),
+                    'id': get_file_hash(str(file).encode('utf-8')),
                     'filename': file,
                     'title': file_metadata['title'],
                     'artist': file_metadata['artist'],
@@ -288,4 +288,42 @@ def get_artworks():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-    
+def get_file_hash(file_content):
+        hasher = hashlib.md5()
+        hasher.update(file_content)
+        return hasher.hexdigest()    
+
+@recording_bp.route('/replace', methods=['POST'])
+def replace_recording():
+    recording_id = request.form.get('recording_id')
+    if 'replacement' not in request.files:
+        print('Nig1')
+        return jsonify({'error': 'No file part'}), 400
+    file = request.files['replacement']
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+
+    if recording_id and file:
+        print(recording_id)
+
+        existing_files = [f for f in os.listdir(recordings_dir) if get_file_hash(str(f).encode('utf-8')) == recording_id]
+        if not existing_files:
+            return jsonify({'error': 'Recording not found'}), 404
+
+        existing_file_path = os.path.join(recordings_dir, existing_files[0])
+        
+        replacement_path = existing_file_path  
+        file.save(replacement_path)
+
+        '''
+        selected_artwork = request.form.get('existing-artworks')
+        curr_date = datetime.datetime.today().strftime('%d.%m.%Y')
+        if selected_artwork:
+            artwork_path = os.path.join(thumbnails_dir, selected_artwork)
+            add_metadata(replacement_path, 'Morning Delight', f'Bant Yayini ({curr_date})', '', artwork_path)
+        else:
+            add_metadata(replacement_path, 'Morning Delight', f'Bant Yayini ({curr_date})', '', 'default_artwork.jpg')
+        '''
+        return jsonify({'message': 'Recording replaced successfully'}), 200
+    else:
+        return jsonify({'error': 'Invalid request'}), 400

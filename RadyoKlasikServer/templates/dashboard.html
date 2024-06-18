@@ -31,6 +31,11 @@
       .recording div {
         margin-right: 10px;
       }
+
+      .recording form {
+        display: flex;
+        align-items: center;
+      }
     </style>
     <script>
       let intervalId;
@@ -55,6 +60,7 @@
             clearInterval(intervalId);
             document.getElementById("recording-time").innerText =
               "Recording stopped.";
+            fetchRecordings();
           }
         });
       }
@@ -111,7 +117,7 @@
               const div = document.createElement("div");
               div.classList.add("recording");
               div.innerHTML = `
-                <img src="${recording.artwork}" alt="Artwork" />
+              <img src="${recording.artwork}" alt="Artwork" />
                 <div><strong>Title:</strong> ${recording.title}</div>
                 <div><strong>Artist:</strong> ${recording.artist}</div>
                 <div><strong>Duration:</strong> ${Math.floor(
@@ -120,10 +126,32 @@
                 <div><a href="${
                   recording.route_to_stream_it
                 }">Download</a></div>
+                <form action="javascript:void(0);" onsubmit="uploadReplacement(event, '${
+                  recording.id
+                }')">
+                  <input type="file" name="replacement" accept="audio/mp3" required />
+                  <button type="submit">Upload Replacement</button>
+                </form>
               `;
               container.appendChild(div);
             });
           });
+      }
+
+      function uploadReplacement(event, recordingId) {
+        event.preventDefault();
+        const form = event.target;
+        const formData = new FormData(form);
+        formData.append("recording_id", recordingId);
+
+        fetch("recording/replace", {
+          method: "POST",
+          body: formData,
+        }).then((response) => {
+          if (response.ok) {
+            fetchRecordings();
+          }
+        });
       }
 
       document.addEventListener("DOMContentLoaded", function () {
