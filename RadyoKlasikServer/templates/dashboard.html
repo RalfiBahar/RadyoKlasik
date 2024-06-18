@@ -15,6 +15,22 @@
       .artwork.selected {
         border: 2px solid blue;
       }
+
+      .recording {
+        display: flex;
+        align-items: center;
+        margin-bottom: 10px;
+      }
+
+      .recording img {
+        width: 50px;
+        height: 50px;
+        margin-right: 10px;
+      }
+
+      .recording div {
+        margin-right: 10px;
+      }
     </style>
     <script>
       let intervalId;
@@ -82,8 +98,37 @@
         selectedArtwork = artwork;
       }
 
+      function fetchRecordings() {
+        fetch("recording/recordings")
+          .then((response) => response.json())
+          .then((data) => {
+            const container = document.getElementById("recordings-container");
+            container.innerHTML = "";
+            data.recordings.sort(
+              (a, b) => new Date(b.filename) - new Date(a.filename)
+            );
+            data.recordings.forEach((recording) => {
+              const div = document.createElement("div");
+              div.classList.add("recording");
+              div.innerHTML = `
+                <img src="${recording.artwork}" alt="Artwork" />
+                <div><strong>Title:</strong> ${recording.title}</div>
+                <div><strong>Artist:</strong> ${recording.artist}</div>
+                <div><strong>Duration:</strong> ${Math.floor(
+                  recording.duration / 60
+                )}m ${recording.duration % 60}s</div>
+                <div><a href="${
+                  recording.route_to_stream_it
+                }">Download</a></div>
+              `;
+              container.appendChild(div);
+            });
+          });
+      }
+
       document.addEventListener("DOMContentLoaded", function () {
         fetchArtworks();
+        fetchRecordings();
       });
     </script>
   </head>
@@ -117,6 +162,11 @@
     <h2>Select Existing Artwork</h2>
     <div id="artworks-container">
       <!-- Artworks will be populated by JavaScript -->
+    </div>
+
+    <h2>Past Recordings</h2>
+    <div id="recordings-container">
+      <!-- Recordings will be populated by JavaScript -->
     </div>
   </body>
 </html>
