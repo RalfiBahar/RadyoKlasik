@@ -1,0 +1,132 @@
+html,
+body,
+:root {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto,
+    Helvetica Neue, Ubuntu, sans-serif;
+}
+
+.card {
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 16px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  width: 300px;
+}
+
+.card button {
+  background-color: rgb(84, 105, 212);
+  box-shadow: rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px,
+    rgba(0, 0, 0, 0.12) 0px 1px 1px 0px, rgb(84, 105, 212) 0px 0px 0px 1px,
+    rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px,
+    rgba(60, 66, 87, 0.08) 0px 2px 5px 0px;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  border: unset;
+  border-radius: 4px;
+  min-height: 44px;
+  margin: 5px;
+  font-size: 18px;
+  padding: 10px;
+}
+
+button {
+  background-color: rgb(84, 105, 212);
+  box-shadow: rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px,
+    rgba(0, 0, 0, 0.12) 0px 1px 1px 0px, rgb(84, 105, 212) 0px 0px 0px 1px,
+    rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px,
+    rgba(60, 66, 87, 0.08) 0px 2px 5px 0px;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  border: unset;
+  border-radius: 4px;
+  min-height: 44px;
+  margin: 5px;
+  font-size: 18px;
+  padding: 10px;
+}
+
+.card h2 {
+  margin-top: 0;
+}
+
+.recording-status-div {
+  padding: 10px;
+  background-color: #3c3c3c;
+  border-radius: 8px;
+  margin: 5px;
+  width: 120px;
+  display: flex;
+  justify-content: center;
+}
+
+#recording-time {
+  color: #fff;
+  font-weight: bold;
+  font-size: 16px;
+}
+.artwork {
+  width: 100px;
+  height: 100px;
+  margin: 10px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  border-radius: 10px;
+}
+
+.artwork.selected {
+  border: 4px solid rgb(84, 105, 212);
+}
+
+.recording {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.recording img {
+  width: 50px;
+  height: 50px;
+  margin-right: 10px;
+}
+
+.recording div {
+  margin-right: 10px;
+}
+
+.recording form {
+  display: flex;
+  align-items: center;
+}
+
+.recording button {
+  margin-left: 10px;
+}
+
+.file-upload-input {
+  background-color: rgb(84, 105, 212);
+  box-shadow: rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px,
+    rgba(0, 0, 0, 0.12) 0px 1px 1px 0px, rgb(84, 105, 212) 0px 0px 0px 1px,
+    rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px,
+    rgba(60, 66, 87, 0.08) 0px 2px 5px 0px;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  border: unset;
+  border-radius: 4px;
+  min-height: 44px;
+  margin: 5px;
+  padding: 5px;
+  display: flex;
+  align-items: center;
+  width: fit-content;
+}
+
+.flex-center-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}

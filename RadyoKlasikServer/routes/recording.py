@@ -335,6 +335,7 @@ def get_artworks():
     try:
         artworks = os.listdir(thumbnails_dir)
         artworks_list = [file for file in artworks if os.path.isfile(os.path.join(thumbnails_dir, file))]
+        artworks_list.sort(key=lambda x: os.path.getmtime(os.path.join(thumbnails_dir, x)), reverse=True)
         return jsonify(artworks_list)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -418,5 +419,31 @@ def replace_recording():
         return jsonify({'message': 'Recording replaced and updated successfully'}), 200
     else:
         return jsonify({'error': 'Invalid request'}), 400
+
+@recording_bp.route('/remove/<recording_id>', methods=['DELETE'])
+def remove_recording(recording_id):
+    db = next(get_db())
+    existing_recording = db.query(Recording).filter(Recording.id == recording_id).first()
+    if not existing_recording:
+        return jsonify({'error': 'Recording not found'}), 404
+
+    recording_path = os.path.join(recordings_dir, existing_recording.filename)
+    if os.path.exists(recording_path):
+        os.remove(recording_path)
+
+    if existing_recording.artwork:
+        artwork_path = existing_recording.artwork.replace("/static/assets/thumbnails/", "")
+        artwork_path = os.path.join(thumbnails_dir, artwork_path)
+
+        other_recordings_using_artwork = db.query(Recording).filter(Recording.artwork == existing_recording.artwork).count()
+
+        if other_recordings_using_artwork == 1: 
+            if os.path.exists(artwork_path):
+                os.remove(artwork_path)
+
+    db.delete(existing_recording)
+    db.commit()
+
+    return jsonify({'message': 'Recording removed successfully'}), 200
 
 

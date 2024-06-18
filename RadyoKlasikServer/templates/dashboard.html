@@ -3,43 +3,15 @@
   <head>
     <meta charset="utf-8" />
     <title>Dashboard</title>
-    <style>
-      .artwork {
-        width: 100px;
-        height: 100px;
-        margin: 10px;
-        cursor: pointer;
-        border: 2px solid transparent;
-      }
-
-      .artwork.selected {
-        border: 2px solid blue;
-      }
-
-      .recording {
-        display: flex;
-        align-items: center;
-        margin-bottom: 10px;
-      }
-
-      .recording img {
-        width: 50px;
-        height: 50px;
-        margin-right: 10px;
-      }
-
-      .recording div {
-        margin-right: 10px;
-      }
-
-      .recording form {
-        display: flex;
-        align-items: center;
-      }
-    </style>
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="{{ url_for('static',filename='styles/dashboard.css') }}"
+    />
     <script>
       let intervalId;
       let selectedArtwork = null;
+      let isExpanded = false;
 
       function startRecording() {
         fetch("recording/start", { method: "POST" }).then((response) => {
@@ -59,8 +31,10 @@
         }).then((response) => {
           if (response.ok) {
             clearInterval(intervalId);
-            document.getElementById("recording-time").innerText =
-              "Recording stopped.";
+            document.getElementById("recording-time").innerText = "Stopped.";
+            document.getElementById("recording-time").style.fontSize = "16px";
+            document.getElementById("rec-stat").style.backgroundColor =
+              "#3c3c3c";
             fetchRecordings();
           }
         });
@@ -71,12 +45,18 @@
           .then((response) => response.json())
           .then((data) => {
             if (data.is_recording) {
+              if (intervalId == null) {
+                intervalId = setInterval(updateRecordingTime, 1000);
+              }
               const elapsedTime = Math.floor(data.elapsed_time);
               const minutes = Math.floor(elapsedTime / 60);
               const seconds = elapsedTime % 60;
               document.getElementById(
                 "recording-time"
-              ).innerText = `Recording: ${minutes}m ${seconds}s`;
+              ).innerText = `${minutes}m ${seconds}s`;
+              document.getElementById("recording-time").style.fontSize = "20px";
+              document.getElementById("rec-stat").style.backgroundColor =
+                "#EF5350";
             }
           });
       }
@@ -87,9 +67,9 @@
           .then((data) => {
             const container = document.getElementById("artworks-container");
             container.innerHTML = "";
-            data.forEach((artwork) => {
+            const artworksToShow = isExpanded ? data : data.slice(0, 4);
+            artworksToShow.forEach((artwork) => {
               const img = document.createElement("img");
-              console.log(artwork);
               img.src = `/static/assets/thumbnails/${artwork}`;
               img.classList.add("artwork");
               img.onclick = () => selectArtwork(img, artwork);
@@ -112,7 +92,10 @@
             const container = document.getElementById("recordings-container");
             container.innerHTML = "";
             data.recordings.sort((a, b) => new Date(b.date) - new Date(a.date));
-            data.recordings.forEach((recording) => {
+            const recordingsToShow = isExpanded
+              ? data.recordings
+              : data.recordings.slice(0, 8);
+            recordingsToShow.forEach((recording) => {
               const div = document.createElement("div");
               div.classList.add("recording");
               div.innerHTML = `
@@ -129,6 +112,10 @@
                   <input type="file" name="replacement" accept="audio/mp3" required />
                   <button type="submit">Upload Replacement</button>
                 </form>
+                <button onclick="removeRecording('${
+                  recording.id
+                }')">Remove</button>
+
               `;
               container.appendChild(div);
             });
@@ -151,9 +138,33 @@
         });
       }
 
+      function removeRecording(recordingId) {
+        fetch(`recording/remove/${recordingId}`, {
+          method: "DELETE",
+        }).then((response) => {
+          if (response.ok) {
+            fetchRecordings();
+          }
+        });
+      }
+
+      function triggerFileInput() {
+        document.getElementById("file-upload-input").click();
+      }
+
+      function toggleExpand() {
+        isExpanded = !isExpanded;
+        fetchArtworks();
+        fetchRecordings();
+        document.getElementById("expand-button").innerText = isExpanded
+          ? "Collapse"
+          : "Expand";
+      }
+
       document.addEventListener("DOMContentLoaded", function () {
         fetchArtworks();
         fetchRecordings();
+        updateRecordingTime();
       });
     </script>
   </head>
@@ -161,37 +172,80 @@
     <h1>Admin Dashboard</h1>
     <p>Welcome to the admin dashboard!</p>
     <a href="{{ url_for('auth.logout') }}">Logout</a>
-    <h1>MP3 Stream Recorder</h1>
-    <form
-      action="javascript:void(0);"
-      method="post"
-      onsubmit="startRecording()"
-    >
-      <button type="submit">Start Recording</button>
-    </form>
-    <form action="javascript:void(0);" method="post" onsubmit="stopRecording()">
-      <button type="submit">Stop Recording</button>
-    </form>
-    <p id="recording-time">Not recording.</p>
+    <button id="expand-button" onclick="toggleExpand()">Expand</button>
+    <div style="display: flex; flex-direction: row">
+      <div>
+        <div class="card">
+          <h2>MP3 Stream Recorder</h2>
+          <div
+            style="
+              display: flex;
+              flex-direction: row;
+              justify-content: center;
+              align-items: center;
+            "
+          >
+            <div id="rec-stat" class="recording-status-div">
+              <p id="recording-time">Not recording.</p>
+            </div>
+            <div>
+              <form
+                action="javascript:void(0);"
+                method="post"
+                onsubmit="startRecording()"
+              >
+                <button type="submit">Start Recording</button>
+              </form>
+              <form
+                action="javascript:void(0);"
+                method="post"
+                onsubmit="stopRecording()"
+              >
+                <button type="submit">Stop Recording</button>
+              </form>
+            </div>
+          </div>
+        </div>
 
-    <h2>Upload New Artwork</h2>
-    <form
-      action="recording/upload_artwork"
-      method="post"
-      enctype="multipart/form-data"
-    >
-      <input type="file" name="artwork" accept="image/*" />
-      <button type="submit">Upload Artwork</button>
-    </form>
+        <div class="card">
+          <h2>Upload New Artwork</h2>
+          <form
+            action="recording/upload_artwork"
+            method="post"
+            enctype="multipart/form-data"
+          >
+            <div class="flex-center-center">
+              <button type="button" onclick="triggerFileInput()">
+                Upload Artwok
+                <input
+                  type="file"
+                  name="artwork"
+                  accept="image/*"
+                  id="file-upload-input"
+                  style="display: none"
+                />
+              </button>
+              <button
+                type="submit"
+                style="background-color: #6daf4e; box-shadow: none"
+              >
+                Send Artwork
+              </button>
+            </div>
+          </form>
 
-    <h2>Select Existing Artwork</h2>
-    <div id="artworks-container">
-      <!-- Artworks will be populated by JavaScript -->
-    </div>
-
-    <h2>Past Recordings</h2>
-    <div id="recordings-container">
-      <!-- Recordings will be populated by JavaScript -->
+          <h2 style="margin-top: 15px">Select Existing Artwork</h2>
+          <div id="artworks-container">
+            <!-- Artworks will be populated by JavaScript -->
+          </div>
+        </div>
+      </div>
+      <div class="card" style="width: fit-content">
+        <h2>Past Recordings</h2>
+        <div id="recordings-container">
+          <!-- Recordings will be populated by JavaScript -->
+        </div>
+      </div>
     </div>
   </body>
 </html>
