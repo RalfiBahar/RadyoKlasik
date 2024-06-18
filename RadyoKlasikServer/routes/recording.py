@@ -14,7 +14,8 @@ from mutagen.mp3 import MP3
 from mutagen.id3 import ID3, TIT2, TPE1, TALB, APIC, error
 from werkzeug.utils import secure_filename
 import hashlib
-
+from sqlalchemy.orm import Session
+from models.recording import Recording, SessionLocal
 
 recording_bp = Blueprint('recording', __name__)
 
@@ -22,6 +23,17 @@ is_recording = False
 record_thread = None
 audio_data = BytesIO()
 recordings_dir = "recordings"  # Directory where recordings are stored
+thumbnails_dir = "static/assets/thumbnails"
+if not os.path.exists(thumbnails_dir):
+    os.makedirs(thumbnails_dir)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 
 def record_stream(url):
     global is_recording, audio_data
@@ -74,9 +86,11 @@ def stop_recording():
             os.makedirs(recordings_dir)
         
         print('EXPORTING AUDIO SEGMENT')
-        output_file_path = os.path.join(recordings_dir, str(datetime.datetime.now().strftime("%d.%m.%Y")))
+        output_file_path = recordings_dir + '/' 
         #delete hash in name
-        file_name_w_path = output_file_path + '_LiveProgramme' +  str(hash(datetime.datetime.now()))[:6]+ '.mp3'
+        file_name = str(datetime.datetime.now().strftime("%d.%m.%Y")) + '_LiveProgramme' +  str(hash(datetime.datetime.now()))[:6]+ '.mp3'
+        file_name_w_path = output_file_path + file_name
+        print('fnwp', file_name_w_path)
         audio_segment.export(file_name_w_path, format="mp3")
         print(f"STREAM RECORDED AND SAVED AS: {output_file_path}")
         
@@ -91,6 +105,24 @@ def stop_recording():
             add_metadata(file_name_w_path, 'Morning Delight', f'Bant Yayini ({curr_date})',  '', artwork_path)
         else:
             add_metadata(file_name_w_path, 'Morning Delight', f'Bant Yayini ({curr_date})',  '', 'default_artwork.jpg')
+
+        db = next(get_db())
+        recording_id = get_file_hash(file_name_w_path.encode('utf-8'))
+        recording_size = os.path.getsize(file_name_w_path) / (1024 * 1024)
+        print('added ', file_name_w_path)
+        new_recording = Recording(
+            id=recording_id,
+            filename=file_name,
+            title='Morning Delight',
+            artist=f'Bant Yayini ({curr_date})',
+            album='',
+            artwork=artwork_path,
+            duration=recording_duration // 1000,  # duration in seconds
+            size=recording_size #in MB
+        )
+        db.add(new_recording)
+        db.commit()
+        db.refresh(new_recording)
 
 
         print('metadata applied')
@@ -144,13 +176,32 @@ def status():
 def get_recording(filename):
     try:
         print(f"Trying to send file: {filename}")
-        print(recordings_dir + '/' + filename)
         return send_from_directory(recordings_dir, filename)
     except Exception as e:
         print(f"Error: {e} {filename}")
         return jsonify({"error": str(e)}), 404
 
 @recording_bp.route('/recordings', methods=['GET'])
+def get_recordings_list():
+    db = next(get_db())
+    recordings = db.query(Recording).all()
+    recordings_list = [
+        {
+            'id': recording.id,
+            'filename': recording.filename,
+            'title': recording.title,
+            'artist': recording.artist,
+            'album': recording.album,
+            'artwork': recording.artwork,
+            'duration': recording.duration,
+            'size': recording.size,
+            'stream': url_for('recording.get_recording', filename=os.path.basename(recording.filename))
+        }
+        for recording in recordings
+    ]
+    return jsonify({'recordings': recordings_list})
+
+'''
 def get_recordings_list():
     def get_file_hash(file_content):
         hasher = hashlib.md5()
@@ -218,7 +269,7 @@ def get_recordings_list():
         return jsonify({'recordings': recordings_list})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    
+'''
 def get_final_mp3_url(base_url):
     try:
         parsed_url = urllib.parse.urlparse(base_url)
@@ -250,10 +301,7 @@ def get_redirect_url():
         return jsonify({'url': final_url})
     else:
         return jsonify({'error': 'Failed to retrieve the redirect MP3 stream URL'}), 500
-    
-thumbnails_dir = "static/assets/thumbnails"
-if not os.path.exists(thumbnails_dir):
-    os.makedirs(thumbnails_dir)
+
 
 @recording_bp.route('/upload_artwork', methods=['POST'])
 def upload_artwork():
@@ -294,36 +342,80 @@ def get_file_hash(file_content):
         return hasher.hexdigest()    
 
 @recording_bp.route('/replace', methods=['POST'])
+@recording_bp.route('/replace', methods=['POST'])
 def replace_recording():
     recording_id = request.form.get('recording_id')
     if 'replacement' not in request.files:
-        print('Nig1')
         return jsonify({'error': 'No file part'}), 400
     file = request.files['replacement']
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
 
     if recording_id and file:
-        print(recording_id)
-
-        existing_files = [f for f in os.listdir(recordings_dir) if get_file_hash(str(f).encode('utf-8')) == recording_id]
-        if not existing_files:
+        db = next(get_db())
+        existing_recording = db.query(Recording).filter(Recording.id == recording_id).first()
+        if not existing_recording:
             return jsonify({'error': 'Recording not found'}), 404
 
-        existing_file_path = os.path.join(recordings_dir, existing_files[0])
-        
-        replacement_path = existing_file_path  
+        replacement_path = os.path.join(recordings_dir, existing_recording.filename)
         file.save(replacement_path)
 
-        '''
-        selected_artwork = request.form.get('existing-artworks')
-        curr_date = datetime.datetime.today().strftime('%d.%m.%Y')
-        if selected_artwork:
-            artwork_path = os.path.join(thumbnails_dir, selected_artwork)
-            add_metadata(replacement_path, 'Morning Delight', f'Bant Yayini ({curr_date})', '', artwork_path)
-        else:
-            add_metadata(replacement_path, 'Morning Delight', f'Bant Yayini ({curr_date})', '', 'default_artwork.jpg')
-        '''
-        return jsonify({'message': 'Recording replaced successfully'}), 200
+        # Update recording details
+        recording_size = os.path.getsize(replacement_path) / (1024 * 1024)  # size in MB
+
+        audio = MP3(replacement_path, ID3=ID3)
+        duration = int(audio.info.length)
+        title = audio.tags.get('TIT2', existing_recording.title).text[0] if 'TIT2' in audio.tags else existing_recording.title
+        artist = audio.tags.get('TPE1', existing_recording.artist).text[0] if 'TPE1' in audio.tags else existing_recording.artist
+        album = audio.tags.get('TALB', existing_recording.album).text[0] if 'TALB' in audio.tags else existing_recording.album
+
+        existing_recording.size = recording_size
+        existing_recording.duration = duration
+        existing_recording.title = title
+        existing_recording.artist = artist
+        existing_recording.album = album
+
+        # Update artwork if present in the new file
+        for tag in audio.tags.values():
+            if isinstance(tag, APIC):
+                artwork_data = tag.data
+                artwork_hash = get_file_hash(artwork_data)
+                mime_type = tag.mime
+                extension = mimetypes.guess_extension(mime_type)
+
+                if extension is None:
+                    extension = ".jpg"  # Default to .jpg if the MIME type is unknown
+
+                artwork_filename = f"{artwork_hash}{extension}"
+                artwork_path = os.path.join(thumbnails_dir, artwork_filename)
+
+                # Check for existing files with any extension
+                existing_files = [
+                    os.path.join(thumbnails_dir, f"{artwork_hash}{ext}")
+                    for ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp']
+                ]
+                file_exists = None
+                for file in existing_files:
+                    if os.path.exists(file):
+                        file_exists = file
+                        break
+
+                if file_exists:
+                    artwork_filename = os.path.basename(file_exists)
+                else:
+                    artwork_filename = f"{artwork_hash}{extension}"
+                    artwork_path = os.path.join(thumbnails_dir, artwork_filename)
+                    with open(artwork_path, 'wb') as img:
+                        img.write(artwork_data)
+
+                existing_recording.artwork = f"/static/assets/thumbnails/{artwork_filename}"
+                break
+
+        db.commit()
+
+        return jsonify({'message': 'Recording replaced and updated successfully'}), 200
     else:
         return jsonify({'error': 'Invalid request'}), 400
+
+
+#get_file_hash(str(f).encode('utf-8'))

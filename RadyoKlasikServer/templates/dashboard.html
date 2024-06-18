@@ -123,9 +123,7 @@
                 <div><strong>Duration:</strong> ${Math.floor(
                   recording.duration / 60
                 )}m ${recording.duration % 60}s</div>
-                <div><a href="${
-                  recording.route_to_stream_it
-                }">Download</a></div>
+                <div><a href="${recording.stream}">Download</a></div>
                 <form action="javascript:void(0);" onsubmit="uploadReplacement(event, '${
                   recording.id
                 }')">

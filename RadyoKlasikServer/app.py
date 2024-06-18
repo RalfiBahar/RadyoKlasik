@@ -1,6 +1,6 @@
 from flask import Flask, Blueprint
 from flask_login import LoginManager
-from models import User
+from models.user import User
 from routes import auth, recording
 
 def create_app():
