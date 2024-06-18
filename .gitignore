@@ -37,3 +37,7 @@ yarn-error.*
 .env
 recorded_stream*
 *.mp3
+__pycache__/
+*.py[cod]
+*.pyc
+recording.cpython-312.pyc

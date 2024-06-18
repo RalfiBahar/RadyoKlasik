@@ -173,16 +173,21 @@ def get_recordings_list():
                 artwork_hash = get_file_hash(artwork_data)
                 mime_type = tag.mime
                 extension = mimetypes.guess_extension(mime_type)
+                print(extension)
+
                 if extension is None:
                     extension = ".jpg"  
-            
+
                 artwork_filename = f"{artwork_hash}{extension}"
                 artwork_path = os.path.join(thumbnails_dir, artwork_filename)
                 
-                if not os.path.exists(artwork_path):
+                existing_files = [os.path.join(thumbnails_dir, f"{artwork_hash}{ext}") for ext in ['.jpg', '.jpeg', '.png']]
+                file_exists = any(os.path.exists(file) for file in existing_files)
+
+                if not file_exists:
                     with open(artwork_path, 'wb') as img:
                         img.write(artwork_data)
-                
+  
                 metadata['artwork'] = f"/static/assets/thumbnails/{artwork_filename}"
                 break
 
