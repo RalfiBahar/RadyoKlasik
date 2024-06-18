@@ -39,6 +39,7 @@
     </style>
     <script>
       let intervalId;
+      let selectedArtwork = null;
 
       function startRecording() {
         fetch("recording/start", { method: "POST" }).then((response) => {

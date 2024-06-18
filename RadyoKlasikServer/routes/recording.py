@@ -17,6 +17,7 @@ import hashlib
 from sqlalchemy.orm import Session
 from models.recording import Recording, SessionLocal
 import datetime
+import glob
 
 recording_bp = Blueprint('recording', __name__)
 
@@ -94,18 +95,17 @@ def stop_recording():
         print('fnwp', file_name_w_path)
         audio_segment.export(file_name_w_path, format="mp3")
         print(f"STREAM RECORDED AND SAVED AS: {output_file_path}")
-        
         selected_artwork = request.form.get('existing-artworks')
         curr_date = datetime.datetime.today()
         curr_date = curr_date.strftime('%d')+ '.' + curr_date.strftime('%m') + '.' + curr_date.strftime('%Y')
         if selected_artwork:
-            print('selected art', selected_artwork)
             artwork_path = os.path.join(thumbnails_dir, selected_artwork)
-            
-            (artwork_path)
             add_metadata(file_name_w_path, 'Morning Delight', f'Bant Yayini ({curr_date})',  '', artwork_path)
         else:
-            add_metadata(file_name_w_path, 'Morning Delight', f'Bant Yayini ({curr_date})',  '', 'default_artwork.jpg')
+            list_of_files = glob.glob(os.path.join(thumbnails_dir, '*'))
+            artwork_path = max(list_of_files, key=os.path.getmtime)
+            print(artwork_path)
+            add_metadata(file_name_w_path, 'Morning Delight', f'Bant Yayini ({curr_date})',  '', artwork_path)
 
         db = next(get_db())
         recording_id = get_file_hash(file_name_w_path.encode('utf-8'))
@@ -186,7 +186,7 @@ def get_recording(filename):
 @recording_bp.route('/recordings', methods=['GET'])
 def get_recordings_list():
     db = next(get_db())
-    recordings = db.query(Recording).all()
+    recordings = db.query(Recording).order_by(Recording.date.desc()).all()
     recordings_list = [
         {
             'id': recording.id,
@@ -420,4 +420,3 @@ def replace_recording():
         return jsonify({'error': 'Invalid request'}), 400
 
 
-#get_file_hash(str(f).encode('utf-8'))
