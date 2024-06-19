@@ -90,7 +90,7 @@ def stop_recording():
         print('EXPORTING AUDIO SEGMENT')
         output_file_path = recordings_dir + '/' 
         #delete hash in name
-        file_name = str(datetime.datetime.now().strftime("%d.%m.%Y")) + '_LiveProgramme' +  str(hash(datetime.datetime.now()))[:6]+ '.mp3'
+        file_name = str(datetime.datetime.now().strftime("%d%m%Y")) + '_LiveProgramme' +  str(hash(datetime.datetime.now()))[:6]+ '.mp3'
         file_name_w_path = output_file_path + file_name
         print('fnwp', file_name_w_path)
         audio_segment.export(file_name_w_path, format="mp3")
@@ -114,6 +114,7 @@ def stop_recording():
         new_recording = Recording(
             id=recording_id,
             filename=file_name,
+            stream=url_for('recording.get_recording', filename=os.path.basename(file_name)),
             title='Morning Delight',
             artist=f'Bant Yayini ({curr_date})',
             album='',
@@ -178,6 +179,13 @@ def status():
 def get_recording(filename):
     try:
         print(f"Trying to send file: {filename}")
+        db = next(get_db())
+        recording = db.query(Recording).filter(Recording.filename == filename).first()
+        if not recording:
+            return jsonify({'error': 'Recording not found'}), 404
+
+        recording.play_count += 1
+        db.commit()
         return send_from_directory(recordings_dir, filename)
     except Exception as e:
         print(f"Error: {e} {filename}")
@@ -198,81 +206,14 @@ def get_recordings_list():
             'duration': recording.duration,
             'size': recording.size,
             'date': recording.date,
-            'stream': url_for('recording.get_recording', filename=os.path.basename(recording.filename))
+            'stream': recording.stream,#url_for('recording.get_recording', filename=os.path.basename(recording.filename))
+            'play_count': recording.play_count,
         }
         for recording in recordings
     ]
     return jsonify({'recordings': recordings_list})
 
-'''
-def get_recordings_list():
-    def get_file_hash(file_content):
-        hasher = hashlib.md5()
-        hasher.update(file_content)
-        return hasher.hexdigest()
 
-    def get_metadata(filename):
-        audio = MP3(filename, ID3=ID3)
-        metadata = {
-            'title': audio.tags.get('TIT2', 'Unknown Title').text[0] if 'TIT2' in audio.tags else 'Unknown Title',
-            'album': audio.tags.get('TALB', 'Unknown Album').text[0] if 'TALB' in audio.tags else 'Unknown Album',
-            'artist': audio.tags.get('TPE1', 'Unknown Artist').text[0] if 'TPE1' in audio.tags else 'Unknown Artist',
-            'artwork': None,
-            'duration': int(audio.info.length),
-        }
-
-        for tag in audio.tags.values():
-            if isinstance(tag, APIC):
-                artwork_data = tag.data
-                artwork_hash = get_file_hash(artwork_data)
-                mime_type = tag.mime
-                extension = mimetypes.guess_extension(mime_type)
-
-                if extension is None:
-                    extension = ".jpg"  
-
-                artwork_filename = f"{artwork_hash}{extension}"
-                artwork_path = os.path.join(thumbnails_dir, artwork_filename)
-                
-                existing_files = [os.path.join(thumbnails_dir, f"{artwork_hash}{ext}") for ext in ['.jpg', '.jpeg', '.png']]
-                file_exists = None
-                for file in existing_files:
-                    if os.path.exists(file):
-                        file_exists = file
-                        break
-
-                if file_exists:
-                    metadata['artwork'] = f"/static/assets/thumbnails/{os.path.basename(file_exists)}"
-                else:
-                    with open(artwork_path, 'wb') as img:
-                        img.write(artwork_data)
-                    metadata['artwork'] = f"/static/assets/thumbnails/{artwork_filename}"
-                
-                break
-
-        return metadata
-
-    try:
-        recordings = os.listdir(recordings_dir)
-        recordings_list = []
-        for file in recordings:
-            file_path = os.path.join(recordings_dir, file)
-            if os.path.isfile(file_path):
-                file_metadata = get_metadata(file_path)
-                recordings_list.append({
-                    'id': get_file_hash(str(file).encode('utf-8')),
-                    'filename': file,
-                    'title': file_metadata['title'],
-                    'artist': file_metadata['artist'],
-                    'album': file_metadata['album'],
-                    'artwork': file_metadata['artwork'],
-                    'duration': file_metadata['duration'],
-                    'route_to_stream_it': url_for('recording.get_recording', filename=file)
-                })
-        return jsonify({'recordings': recordings_list})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-'''
 def get_final_mp3_url(base_url):
     try:
         parsed_url = urllib.parse.urlparse(base_url)
@@ -431,6 +372,7 @@ def remove_recording(recording_id):
     if os.path.exists(recording_path):
         os.remove(recording_path)
 
+    '''
     if existing_recording.artwork:
         artwork_path = existing_recording.artwork.replace("/static/assets/thumbnails/", "")
         artwork_path = os.path.join(thumbnails_dir, artwork_path)
@@ -440,7 +382,7 @@ def remove_recording(recording_id):
         if other_recordings_using_artwork == 1: 
             if os.path.exists(artwork_path):
                 os.remove(artwork_path)
-
+    '''
     db.delete(existing_recording)
     db.commit()
 
