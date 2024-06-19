@@ -389,3 +389,20 @@ def remove_recording(recording_id):
     return jsonify({'message': 'Recording removed successfully'}), 200
 
 
+@recording_bp.route('/remove_artwork/<artwork_filename>', methods=['DELETE'])
+def remove_artwork(artwork_filename):
+    db = next(get_db())
+    
+    artwork_path = os.path.join(thumbnails_dir, artwork_filename)
+
+    if not os.path.exists(artwork_path):
+        return jsonify({'error': 'Artwork not found'}), 404
+
+    recordings_using_artwork = db.query(Recording).filter(Recording.artwork == f"static/assets/thumbnails/{artwork_filename}").count()
+
+    if recordings_using_artwork > 0:
+        return jsonify({'error': 'Artwork is being used by one or more recordings'}), 400
+
+    os.remove(artwork_path)
+
+    return jsonify({'message': 'Artwork removed successfully'}), 200

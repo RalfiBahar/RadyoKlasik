@@ -6,6 +6,11 @@ body,
     Helvetica Neue, Ubuntu, sans-serif;
 }
 
+:root {
+  --theme-red: #ff4e4e;
+  --theme-purple: rgb(84, 105, 212);
+}
+
 .card {
   border: 1px solid #ccc;
   border-radius: 8px;
@@ -16,9 +21,9 @@ body,
 }
 
 .card button {
-  background-color: rgb(84, 105, 212);
+  background-color: var(--theme-purple);
   box-shadow: rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px,
-    rgba(0, 0, 0, 0.12) 0px 1px 1px 0px, rgb(84, 105, 212) 0px 0px 0px 1px,
+    rgba(0, 0, 0, 0.12) 0px 1px 1px 0px, var(--theme-purple) 0px 0px 0px 1px,
     rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px,
     rgba(60, 66, 87, 0.08) 0px 2px 5px 0px;
   color: #fff;
@@ -33,9 +38,9 @@ body,
 }
 
 button {
-  background-color: rgb(84, 105, 212);
+  background-color: var(--theme-purple);
   box-shadow: rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px,
-    rgba(0, 0, 0, 0.12) 0px 1px 1px 0px, rgb(84, 105, 212) 0px 0px 0px 1px,
+    rgba(0, 0, 0, 0.12) 0px 1px 1px 0px, var(--theme-purple) 0px 0px 0px 1px,
     rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px,
     rgba(60, 66, 87, 0.08) 0px 2px 5px 0px;
   color: #fff;
@@ -78,7 +83,7 @@ button {
 }
 
 .artwork.selected {
-  border: 4px solid rgb(84, 105, 212);
+  border: 4px solid var(--theme-purple);
 }
 
 .recording {
@@ -107,9 +112,9 @@ button {
 }
 
 .file-upload-input {
-  background-color: rgb(84, 105, 212);
+  background-color: var(--theme-purple);
   box-shadow: rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px,
-    rgba(0, 0, 0, 0.12) 0px 1px 1px 0px, rgb(84, 105, 212) 0px 0px 0px 1px,
+    rgba(0, 0, 0, 0.12) 0px 1px 1px 0px, var(--theme-purple) 0px 0px 0px 1px,
     rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px,
     rgba(60, 66, 87, 0.08) 0px 2px 5px 0px;
   color: #fff;

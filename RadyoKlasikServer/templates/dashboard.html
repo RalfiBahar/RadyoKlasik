@@ -106,13 +106,19 @@
                   recording.duration / 60
                 )}m ${recording.duration % 60}s</div>
                 <div><a href="${recording.stream}">Download</a></div>
-                <form action="javascript:void(0);" onsubmit="uploadReplacement(event, '${
+                <form id="replacement-form-${
                   recording.id
-                }')">
-                  <input type="file" name="replacement" accept="audio/mp3" required />
-                  <button type="submit">Upload Replacement</button>
+                }" action="javascript:void(0);" onsubmit="uploadReplacement(event, '${
+                recording.id
+              }')">
+              <input type="file" name="replacement" accept="audio/mp3" style="display: none;" onchange="autoSubmitReplacementForm('${
+                recording.id
+              }')" />
+              <button type="button" onclick="triggerReplacementInput('${
+                recording.id
+              }')">Upload Replacement</button>
                 </form>
-                <button onclick="removeRecording('${
+                <button style="background-color: var(--theme-red); box-shadow: none" onclick="removeRecording('${
                   recording.id
                 }')">Remove</button>
 
@@ -148,8 +154,52 @@
         });
       }
 
+      async function removeSelectedArtwork() {
+        if (selectedArtwork) {
+          try {
+            const response = await fetch(
+              `recording/remove_artwork/${selectedArtwork}`,
+              {
+                method: "DELETE",
+              }
+            );
+            if (response.ok) {
+              fetchArtworks();
+              alert("ng");
+              selectedArtwork = null;
+            } else {
+              const data = await response.json();
+              alert(
+                data.error ||
+                  "An error occurred while trying to remove the artwork."
+              );
+            }
+          } catch (error) {
+            alert("An error occurred while trying to remove the artwork.");
+          }
+        } else {
+          alert("Please select an artwork to remove.");
+        }
+      }
+
       function triggerFileInput() {
         document.getElementById("file-upload-input").click();
+      }
+
+      function triggerReplacementInput(recordingId) {
+        document
+          .querySelector(`#replacement-form-${recordingId} input[type="file"]`)
+          .click();
+      }
+
+      function autoSubmitForm() {
+        const form = document.getElementById("upload-artwork-form");
+        form.submit();
+      }
+
+      function autoSubmitReplacementForm(recordingId) {
+        const form = document.getElementById(`replacement-form-${recordingId}`);
+        form.submit();
       }
 
       function toggleExpand() {
@@ -213,9 +263,14 @@
             action="recording/upload_artwork"
             method="post"
             enctype="multipart/form-data"
+            id="upload-artwork-form"
           >
             <div class="flex-center-center">
-              <button type="button" onclick="triggerFileInput()">
+              <button
+                type="button"
+                onclick="triggerFileInput()"
+                style="background-color: #6daf4e; box-shadow: none"
+              >
                 Upload Artwok
                 <input
                   type="file"
@@ -223,13 +278,15 @@
                   accept="image/*"
                   id="file-upload-input"
                   style="display: none"
+                  onchange="autoSubmitForm()"
                 />
               </button>
               <button
-                type="submit"
-                style="background-color: #6daf4e; box-shadow: none"
+                type="button"
+                onclick="removeSelectedArtwork()"
+                style="background-color: var(--theme-red); box-shadow: none"
               >
-                Send Artwork
+                Remove Artwork
               </button>
             </div>
           </form>
