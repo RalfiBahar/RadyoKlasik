@@ -12,11 +12,13 @@ import { Link } from "expo-router";
 import RecordingItem from "../../components/RecordingItem";
 import { API_URL } from "@env";
 import { useRecordings } from "../../context/RecordingsContext";
+import { usePlayback } from "../../context/PlaybackContext";
 import { BackgroundImage } from "../../components";
 import { Feather } from "@expo/vector-icons";
 
 const RecordingList = () => {
   const { recordings, setRecordings } = useRecordings();
+  const { resetTrack } = usePlayback();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -43,7 +45,7 @@ const RecordingList = () => {
   return (
     <SafeAreaView>
       <BackgroundImage />
-      <Link style={styles.backButton} href="/">
+      <Link style={styles.backButton} href="/" onPress={() => resetTrack}>
         <Feather name="arrow-left" size={24} color="black" />
         <Text style={styles.backButtonText}>Back</Text>
       </Link>

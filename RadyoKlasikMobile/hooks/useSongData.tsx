@@ -13,6 +13,7 @@ const useSongData = (apiUrl: string, intervalTime: number = 5000) => {
       }
       const data = await response.json();
       setSongData({
+        id: "1",
         title: data.title,
         artist: data.artist,
         thumb: data.thumb,

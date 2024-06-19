@@ -4,12 +4,15 @@ import { Link, useLocalSearchParams } from "expo-router";
 import { API_URL } from "@env";
 import AudioButton from "../../components/AudioButton";
 import { useRecordings } from "../../context/RecordingsContext";
+import { usePlayback } from "../../context/PlaybackContext";
 import { BackgroundImage } from "../../components";
 import { Feather } from "@expo/vector-icons";
 
 const Recording = () => {
   const { id } = useLocalSearchParams();
   const { recordings } = useRecordings();
+  const { resetTrack } = usePlayback();
+
   const recording = recordings.find((r) => r.id === id);
 
   if (!recording) {
@@ -21,6 +24,7 @@ const Recording = () => {
   }
 
   const songData = {
+    id: recording.id,
     title: recording.title,
     artist: recording.artist,
     duration: recording.duration,
@@ -30,7 +34,7 @@ const Recording = () => {
   return (
     <View style={styles.container}>
       <BackgroundImage />
-      <Link style={styles.backButton} href="/recordings">
+      <Link style={styles.backButton} href="/recordings" onPress={resetTrack}>
         <Feather name="arrow-left" size={24} color="black" />
         <Text style={styles.backButtonText}>Back</Text>
       </Link>

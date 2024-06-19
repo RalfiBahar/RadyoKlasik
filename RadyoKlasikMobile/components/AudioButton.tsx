@@ -13,10 +13,13 @@ import TrackPlayer, {
   State,
   Capability,
   useProgress,
+  Event,
 } from "react-native-track-player";
 import { SongData } from "../types";
 import { getRedirectedUrl } from "../helpers/getRedirectedUrl";
 import { API_URL } from "@env";
+import { usePlayback } from "../context/PlaybackContext";
+import { formatTime } from "../helpers/formatTime";
 
 const BLUE = "#4A8EDB";
 
@@ -27,11 +30,18 @@ interface AudioButtonProps {
 }
 
 const AudioButton = ({ audioUrl, songData, isRecording }: AudioButtonProps) => {
-  const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const playbackState = usePlaybackState();
   let progress = useProgress();
   const { width, height } = useWindowDimensions();
+  const {
+    isPlaying,
+    setIsPlaying,
+    isFinished,
+    setIsFinished,
+    isPlayerSetup,
+    setIsPlayerSetup,
+  } = usePlayback();
 
   const setupPlayer = async () => {
     try {
@@ -44,7 +54,8 @@ const AudioButton = ({ audioUrl, songData, isRecording }: AudioButtonProps) => {
           Capability.Stop,
         ],
       });
-      console.log("here");
+      console.log("Setting Up");
+      setIsPlayerSetup(true);
     } catch (error) {
       console.log(error);
     }
@@ -54,17 +65,18 @@ const AudioButton = ({ audioUrl, songData, isRecording }: AudioButtonProps) => {
     setIsLoading(true);
     try {
       const activeTrack = await TrackPlayer.getActiveTrack();
-      const currentTrackUrl = activeTrack?.url;
-      //console.log(progress.position / progress.duration);
+      const activeTrackId = activeTrack?.id;
+      const trackId = songData.id;
 
-      //console.log(currentTrackUrl, "cu");
+      //console.log(progress.position / progress.duration);
+      //console.log(activeTrack?.url, "cu");
 
       let redirectedUrl = `${API_URL}${audioUrl}`;
       if (!isRecording) {
         redirectedUrl = await getRedirectedUrl(audioUrl);
       }
-
-      if (currentTrackUrl === redirectedUrl) {
+      console.log(isFinished);
+      if (activeTrackId === trackId) {
         // Same track is already playing
         if (playbackState.state === State.Playing) {
           if (isRecording) {
@@ -74,6 +86,18 @@ const AudioButton = ({ audioUrl, songData, isRecording }: AudioButtonProps) => {
           }
           setIsPlaying(false);
         } else {
+          if (isFinished) {
+            await TrackPlayer.reset();
+            await TrackPlayer.add({
+              id: trackId,
+              url: redirectedUrl,
+              title: songData.title,
+              artist: songData.artist,
+              duration: songData.duration,
+              artwork: songData.thumb,
+              isLiveStream: !isRecording,
+            });
+          }
           await TrackPlayer.play();
           setIsPlaying(true);
         }
@@ -81,7 +105,7 @@ const AudioButton = ({ audioUrl, songData, isRecording }: AudioButtonProps) => {
         // New track, reset and play
         await TrackPlayer.reset();
         await TrackPlayer.add({
-          id: "0",
+          id: trackId,
           url: redirectedUrl,
           title: songData.title,
           artist: songData.artist,
@@ -110,6 +134,9 @@ const AudioButton = ({ audioUrl, songData, isRecording }: AudioButtonProps) => {
     //console.log(`Progress: ${progress.position}/${progress.duration}`);
     return (
       <View style={styles.progressBarContainer}>
+        <Text style={{ fontSize: 20, textAlign: "left" }}>
+          {formatTime(progress.position)}
+        </Text>
         <View
           style={[
             styles.progressBar,
@@ -122,8 +149,36 @@ const AudioButton = ({ audioUrl, songData, isRecording }: AudioButtonProps) => {
     );
   };
 
+  const handlePlaybackEnd = () => {
+    setIsPlaying(false);
+
+    TrackPlayer.addEventListener(Event.PlaybackQueueEnded, () => {
+      setIsPlaying(false);
+      setIsFinished(true);
+    });
+
+    TrackPlayer.addEventListener(
+      Event.PlaybackTrackChanged,
+      async ({ nextTrack }) => {
+        if (nextTrack === null) {
+          setIsPlaying(false);
+          setIsFinished(true);
+        }
+      }
+    );
+  };
+
   useEffect(() => {
-    setupPlayer();
+    if (!isPlayerSetup) {
+      setupPlayer();
+    }
+    const listener = TrackPlayer.addEventListener(
+      Event.PlaybackQueueEnded,
+      handlePlaybackEnd
+    );
+    return () => {
+      listener.remove();
+    };
   }, []);
 
   return (
@@ -165,14 +220,13 @@ const styles = StyleSheet.create({
   },
   progressBarContainer: {
     display: "flex",
-    height: 10,
+    height: 30,
     width: "80%",
-    backgroundColor: "#e0e0e0",
     borderRadius: 5,
     marginTop: 10,
   },
   progressBar: {
-    height: "100%",
+    height: "50%",
     backgroundColor: BLUE,
     borderRadius: 5,
   },
