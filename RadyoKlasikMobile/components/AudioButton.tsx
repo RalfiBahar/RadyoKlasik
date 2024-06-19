@@ -14,15 +14,17 @@ import TrackPlayer, {
 } from "react-native-track-player";
 import { SongData } from "../types";
 import { getRedirectedUrl } from "../helpers/getRedirectedUrl";
+import { API_URL } from "@env";
 
 const BLUE = "#4A8EDB";
 
 interface AudioButtonProps {
   audioUrl: string;
   songData: SongData;
+  isRecording: boolean;
 }
 
-const AudioButton = ({ audioUrl, songData }: AudioButtonProps) => {
+const AudioButton = ({ audioUrl, songData, isRecording }: AudioButtonProps) => {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const playbackState = usePlaybackState();
@@ -47,18 +49,28 @@ const AudioButton = ({ audioUrl, songData }: AudioButtonProps) => {
   const playAudio = async () => {
     setIsLoading(true);
     try {
-      if (playbackState.state == State.Playing) {
-        await TrackPlayer.stop();
-        setIsPlaying(false);
-      } else if (
-        playbackState.state === State.Paused ||
-        playbackState.state === State.Stopped
-      ) {
-        await TrackPlayer.play();
-        setIsPlaying(true);
+      const activeTrack = await TrackPlayer.getActiveTrack();
+      const currentTrackUrl = activeTrack?.url;
+
+      console.log(currentTrackUrl, "cu");
+
+      let redirectedUrl = `${API_URL}${audioUrl}`;
+      if (!isRecording) {
+        redirectedUrl = await getRedirectedUrl(audioUrl);
+      }
+
+      if (currentTrackUrl === redirectedUrl) {
+        // Same track is already playing
+        if (playbackState.state === State.Playing) {
+          await TrackPlayer.pause();
+          setIsPlaying(false);
+        } else {
+          await TrackPlayer.play();
+          setIsPlaying(true);
+        }
       } else {
+        // New track, reset and play
         await TrackPlayer.reset();
-        const redirectedUrl = await getRedirectedUrl(audioUrl);
         await TrackPlayer.add({
           id: "0",
           url: redirectedUrl,
@@ -66,7 +78,7 @@ const AudioButton = ({ audioUrl, songData }: AudioButtonProps) => {
           artist: songData.artist,
           duration: songData.duration,
           artwork: songData.thumb,
-          isLiveStream: true,
+          isLiveStream: !isRecording,
         });
         await TrackPlayer.play();
         setIsPlaying(true);
@@ -77,6 +89,10 @@ const AudioButton = ({ audioUrl, songData }: AudioButtonProps) => {
       setIsLoading(false);
     }
   };
+
+  //TODO: Check if recording is done and upadte button state
+  //TODO: Create duration bar
+  //TODO: Style
 
   useEffect(() => {
     setupPlayer();

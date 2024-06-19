@@ -2,7 +2,7 @@ import { API_URL } from "@env";
 
 export const getRedirectedUrl = async (url: string) => {
   try {
-    const response = await fetch(`${API_URL}/get_redirect`, {
+    const response = await fetch(`${API_URL}/recording/get_redirect`, {
       method: "GET",
     });
 

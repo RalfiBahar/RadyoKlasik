@@ -1,5 +1,6 @@
 {
   "expo": {
+    "scheme": "radyoklasikmobile",
     "name": "RadyoKlasikMobile",
     "slug": "RadyoKlasikMobile",
     "version": "1.0.0",
@@ -51,7 +52,15 @@
       }
     },
     "plugins": [
-      ["expo-build-properties", { "android": { "usesCleartextTraffic": true } }]
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+      "expo-router"
     ]
   }
 }
