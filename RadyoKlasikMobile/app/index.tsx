@@ -20,12 +20,15 @@ import {
 } from "../components";
 import useSongData from "../hooks/useSongData";
 import { Link } from "expo-router";
+import { Feather } from "@expo/vector-icons";
+import { usePlayback } from "../context/PlaybackContext";
 
 export default function App() {
   const { songData, error } = useSongData(
     "https://www.radiojar.com/api/stations/bw66d94ksg8uv/now_playing/"
   );
   const { width, height } = useWindowDimensions();
+  const { resetTrack } = usePlayback();
 
   if (error) {
     return (
@@ -70,7 +73,6 @@ export default function App() {
 
       <View style={styles.content}>
         <LowerContainer>
-          <Link href="/recordings">recordings</Link>
           <TextComponent variant="title">{songData.title}</TextComponent>
           <TextComponent variant="subtitle">{songData.artist}</TextComponent>
           <View style={styles.iconsContainer}>
@@ -80,6 +82,16 @@ export default function App() {
               isRecording={false}
             />
           </View>
+          <Link
+            style={styles.recButton}
+            href="/recordings"
+            onPress={resetTrack}
+          >
+            <View style={styles.recView}>
+              <Feather name="folder" size={24} color="black" />
+              <Text>Archive</Text>
+            </View>
+          </Link>
         </LowerContainer>
       </View>
     </View>
@@ -114,5 +126,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 10,
     marginTop: 30,
+  },
+  recButton: {
+    position: "absolute",
+    bottom: 40,
+    left: 30,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  recView: {
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

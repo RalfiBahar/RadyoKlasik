@@ -47,8 +47,9 @@ const RecordingList = () => {
       <BackgroundImage />
       <Link style={styles.backButton} href="/" onPress={() => resetTrack}>
         <Feather name="arrow-left" size={24} color="black" />
-        <Text style={styles.backButtonText}>Back</Text>
+        <Text style={styles.backButtonText}>Live</Text>
       </Link>
+      <Text style={styles.title}>Past Programs</Text>
       <FlatList
         data={recordings}
         keyExtractor={(item) => item.id}
@@ -86,6 +87,11 @@ const styles = StyleSheet.create({
   backButtonText: {
     fontSize: 18,
     marginLeft: 5,
+  },
+  title: {
+    fontSize: 24,
+    textAlign: "center",
+    fontWeight: "bold",
   },
 });
 

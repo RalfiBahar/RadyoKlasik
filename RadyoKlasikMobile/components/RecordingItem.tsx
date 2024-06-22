@@ -1,6 +1,7 @@
 import React from "react";
 import { StyleSheet, View, Text, Image } from "react-native";
 import { API_URL } from "@env";
+import { formatTime } from "../helpers/formatTime";
 
 interface RecordingItemProps {
   recording: {
@@ -29,9 +30,7 @@ const RecordingItem: React.FC<RecordingItemProps> = ({ recording }) => {
       <View style={styles.details}>
         <Text style={styles.title}>{recording.title}</Text>
         <Text style={styles.artist}>{recording.artist}</Text>
-        <Text style={styles.date}>
-          {new Date(recording.date).toLocaleDateString()}
-        </Text>
+        <Text style={styles.date}>{formatTime(recording.duration)}</Text>
       </View>
     </View>
   );

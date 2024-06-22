@@ -20,6 +20,7 @@ import { getRedirectedUrl } from "../helpers/getRedirectedUrl";
 import { API_URL } from "@env";
 import { usePlayback } from "../context/PlaybackContext";
 import { formatTime } from "../helpers/formatTime";
+import Slider from "@react-native-community/slider";
 
 const BLUE = "#4A8EDB";
 
@@ -123,28 +124,24 @@ const AudioButton = ({ audioUrl, songData, isRecording }: AudioButtonProps) => {
     }
   };
 
-  //TODO: Check if recording is done and upadte button state
-  //TODO: Create duration bar
-  //TODO: Style
-
   const renderProgressBar = () => {
-    const progressWidth = progress.duration
-      ? (progress.position / progress.duration) * 100
-      : 100;
-    //console.log(`Progress: ${progress.position}/${progress.duration}`);
     return (
       <View style={styles.progressBarContainer}>
         <Text style={{ fontSize: 20, textAlign: "left" }}>
           {formatTime(progress.position)}
         </Text>
-        <View
-          style={[
-            styles.progressBar,
-            {
-              width: `${progressWidth}%`,
-            },
-          ]}
+        <Slider
+          style={{ width: "100%", height: 40 }}
+          minimumValue={0}
+          maximumValue={progress.duration}
+          value={progress.position}
+          minimumTrackTintColor={BLUE}
+          maximumTrackTintColor="#000000"
+          onSlidingComplete={(value) => TrackPlayer.seekTo(value)}
         />
+        <Text style={{ fontSize: 20, textAlign: "right" }}>
+          {formatTime(progress.duration)}
+        </Text>
       </View>
     );
   };

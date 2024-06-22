@@ -23,6 +23,7 @@ class Recording(Base):
     size = Column(Float)
     date = Column(DateTime, default=datetime.datetime.utcnow)
     play_count = Column(Integer, default=0)  
+    # Special?
 
 
 

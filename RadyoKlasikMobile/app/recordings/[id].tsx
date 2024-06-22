@@ -45,9 +45,9 @@ const Recording = () => {
       <View style={styles.details}>
         <Text style={styles.title}>{recording.title}</Text>
         <Text style={styles.artist}>{recording.artist}</Text>
-        <Text style={styles.date}>
+        {/*<Text style={styles.date}>
           {new Date(recording.date).toLocaleDateString()}
-        </Text>
+  </Text>*/}
         <AudioButton
           audioUrl={recording.stream}
           songData={songData}
