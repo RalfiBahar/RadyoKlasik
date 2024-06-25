@@ -108,20 +108,18 @@
                 <div><a href="${recording.stream}">Download</a></div>
                 <form id="replacement-form-${
                   recording.id
-                }" action="javascript:void(0);" onsubmit="uploadReplacement(event, '${
-                recording.id
-              }')">
-              <input type="file" name="replacement" accept="audio/mp3" style="display: none;" onchange="autoSubmitReplacementForm('${
-                recording.id
-              }')" />
-              <button type="button" onclick="triggerReplacementInput('${
-                recording.id
-              }')">Upload Replacement</button>
-                </form>
+                }" onsubmit="return false;">
+            <input type="file" name="replacement" accept="audio/mp3" style="display: none;" onchange="autoSubmitReplacementForm('${
+              recording.id
+            }')" />
+            <button type="button" onclick="triggerReplacementInput('${
+              recording.id
+            }')">Upload Replacement</button>
+            <input type="hidden" name="recording_id" value="${recording.id}">
+          </form>
                 <button style="background-color: var(--theme-red); box-shadow: none" onclick="removeRecording('${
                   recording.id
                 }')">Remove</button>
-
               `;
               container.appendChild(div);
             });
@@ -186,20 +184,31 @@
         document.getElementById("file-upload-input").click();
       }
 
-      function triggerReplacementInput(recordingId) {
-        document
-          .querySelector(`#replacement-form-${recordingId} input[type="file"]`)
-          .click();
-      }
-
       function autoSubmitForm() {
         const form = document.getElementById("upload-artwork-form");
         form.submit();
       }
 
       function autoSubmitReplacementForm(recordingId) {
-        const form = document.getElementById(`replacement-form-${recordingId}`);
-        form.submit();
+        const formReplace = document.getElementById(
+          `replacement-form-${recordingId}`
+        );
+        const formData = new FormData(formReplace);
+
+        fetch("recording/replace", {
+          method: "POST",
+          body: formData,
+        }).then((response) => {
+          if (response.ok) {
+            fetchRecordings();
+          }
+        });
+      }
+
+      function triggerReplacementInput(recordingId) {
+        document
+          .querySelector(`#replacement-form-${recordingId} input[type="file"]`)
+          .click();
       }
 
       function toggleExpand() {

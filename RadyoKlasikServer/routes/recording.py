@@ -398,7 +398,9 @@ def remove_artwork(artwork_filename):
     if not os.path.exists(artwork_path):
         return jsonify({'error': 'Artwork not found'}), 404
 
-    recordings_using_artwork = db.query(Recording).filter(Recording.artwork == f"static/assets/thumbnails/{artwork_filename}").count()
+    artwork_base = os.path.splitext(artwork_filename)[0]
+
+    recordings_using_artwork = db.query(Recording).filter(Recording.artwork.like(f"%{artwork_base}%")).count()
 
     if recordings_using_artwork > 0:
         return jsonify({'error': 'Artwork is being used by one or more recordings'}), 400
