@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from models.recording import Recording, SessionLocal
 import datetime
 import glob
+from .auth import token_required
 
 recording_bp = Blueprint('recording', __name__)
 
@@ -58,6 +59,7 @@ def record_stream(url):
     audio_data.seek(0)
 
 @recording_bp.route('/start', methods=['POST'])
+@token_required
 def start_recording():
     global is_recording, record_thread, start_time
     if not is_recording:
@@ -70,6 +72,7 @@ def start_recording():
     return redirect(url_for('dashboard.dashboard'))
 
 @recording_bp.route('/stop', methods=['POST'])
+@token_required
 def stop_recording():
     global is_recording, record_thread, audio_data, start_time
     if is_recording:
@@ -168,6 +171,7 @@ def add_metadata(file_path, title, artist, album, artwork_path):
     audio.save()
 
 @recording_bp.route('/status', methods=['GET'])
+@token_required
 def status():
     global is_recording, start_time
     elapsed_time = 0
@@ -176,6 +180,8 @@ def status():
     return jsonify({'is_recording': is_recording, 'elapsed_time': elapsed_time})
 
 @recording_bp.route('/recordings/<filename>')
+# think about how this could work, when getting 
+#@token_required
 def get_recording(filename):
     try:
         print(f"Trying to send file: {filename}")
@@ -192,6 +198,7 @@ def get_recording(filename):
         return jsonify({"error": str(e)}), 404
 
 @recording_bp.route('/recordings', methods=['GET'])
+@token_required
 def get_recordings_list():
     db = next(get_db())
     recordings = db.query(Recording).order_by(Recording.date.desc()).all()
@@ -235,6 +242,7 @@ def get_final_mp3_url(base_url):
         return None
 
 @recording_bp.route('/get_redirect', methods=['GET'])
+@token_required
 def get_redirect_url():
     base_url = 'http://stream.radiojar.com/bw66d94ksg8uv'
     if not base_url:
@@ -248,6 +256,7 @@ def get_redirect_url():
 
 
 @recording_bp.route('/upload_artwork', methods=['POST'])
+@token_required
 def upload_artwork():
     if 'artwork' not in request.files:
         return jsonify({'error': 'No file part'}), 400
@@ -272,6 +281,7 @@ def upload_artwork():
         return redirect(url_for('dashboard.dashboard'))
 
 @recording_bp.route('/get_artworks', methods=['GET'])
+@token_required
 def get_artworks():
     try:
         artworks = os.listdir(thumbnails_dir)
@@ -287,6 +297,7 @@ def get_file_hash(file_content):
         return hasher.hexdigest()    
 
 @recording_bp.route('/replace', methods=['POST'])
+@token_required
 def replace_recording():
     recording_id = request.form.get('recording_id')
     if 'replacement' not in request.files:
@@ -362,6 +373,7 @@ def replace_recording():
         return jsonify({'error': 'Invalid request'}), 400
 
 @recording_bp.route('/remove/<recording_id>', methods=['DELETE'])
+@token_required
 def remove_recording(recording_id):
     db = next(get_db())
     existing_recording = db.query(Recording).filter(Recording.id == recording_id).first()
@@ -390,6 +402,7 @@ def remove_recording(recording_id):
 
 
 @recording_bp.route('/remove_artwork/<artwork_filename>', methods=['DELETE'])
+@token_required
 def remove_artwork(artwork_filename):
     db = next(get_db())
     
@@ -408,3 +421,4 @@ def remove_artwork(artwork_filename):
     os.remove(artwork_path)
 
     return jsonify({'message': 'Artwork removed successfully'}), 200
+
