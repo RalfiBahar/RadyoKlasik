@@ -1,8 +1,9 @@
 import { API_URL } from "@env";
+import { fetchWithAuth } from "./token";
 
 export const getRedirectedUrl = async (url: string) => {
   try {
-    const response = await fetch(`${API_URL}/recording/get_redirect`, {
+    const response = await fetchWithAuth(`${API_URL}/recording/get_redirect`, {
       method: "GET",
     });
 

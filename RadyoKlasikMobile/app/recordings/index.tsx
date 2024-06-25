@@ -15,6 +15,7 @@ import { useRecordings } from "../../context/RecordingsContext";
 import { usePlayback } from "../../context/PlaybackContext";
 import { BackgroundImage } from "../../components";
 import { Feather } from "@expo/vector-icons";
+import { fetchWithAuth } from "../../helpers/token";
 
 const RecordingList = () => {
   const { recordings, setRecordings } = useRecordings();
@@ -22,7 +23,7 @@ const RecordingList = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API_URL}/recording/recordings`)
+    fetchWithAuth(`${API_URL}/recording/recordings`)
       .then((response) => response.json())
       .then((data) => {
         setRecordings(data.recordings);
