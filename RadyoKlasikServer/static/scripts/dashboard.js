@@ -137,7 +137,11 @@ function fetchRecordings() {
         const div = document.createElement("div");
         div.classList.add("recording");
         div.innerHTML = `
-              <img src="${recording.artwork}" alt="Artwork" />
+                <div id="artwork-container-${
+                  recording.id
+                }" class="artwork-container">
+                  <img src="${recording.artwork}" alt="Artwork" />
+                </div>
                 <div><strong>Title:</strong> ${recording.title}</div>
                 <div><strong>Artist:</strong> ${recording.artist}</div>
                 <div><strong>Duration:</strong> ${Math.floor(
@@ -162,23 +166,6 @@ function fetchRecordings() {
         container.appendChild(div);
       });
     });
-}
-
-function uploadReplacement(event, recordingId) {
-  event.preventDefault();
-  const form = event.target;
-  const formData = new FormData(form);
-  formData.append("recording_id", recordingId);
-
-  fetchWithAuth("recording/replace", {
-    method: "POST",
-    body: formData,
-  }).then((response) => {
-    if (response.ok) {
-      fetchRecordings();
-      fetchArtworks();
-    }
-  });
 }
 
 function removeRecording(recordingId) {
@@ -232,14 +219,51 @@ function autoSubmitReplacementForm(recordingId) {
   );
   const formData = new FormData(formReplace);
 
-  fetchWithAuth("recording/replace", {
-    method: "POST",
-    body: formData,
-  }).then((response) => {
-    if (response.ok) {
-      fetchRecordings();
+  const artworkContainer = document.getElementById(
+    `artwork-container-${recordingId}`
+  );
+  artworkContainer.innerHTML = `
+    <div class="circular-bar" id="circular-bar-${recordingId}">
+      <div class="percent" id="percent-${recordingId}">0%</div>
+    </div>
+  `;
+
+  const xhr = new XMLHttpRequest();
+
+  xhr.open("POST", "recording/replace", true);
+  xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+
+  xhr.upload.onprogress = function (event) {
+    if (event.lengthComputable) {
+      const percentComplete = Math.round((event.loaded / event.total) * 100);
+      const progressPercentage = document.getElementById(
+        `percent-${recordingId}`
+      );
+      progressPercentage.textContent = `${percentComplete}%`;
+
+      const circularBar = document.getElementById(
+        `circular-bar-${recordingId}`
+      );
+      circularBar.style.background = `conic-gradient(var(--theme-purple) ${
+        percentComplete * 3.6
+      }deg, #e8f0f7 0deg)`;
     }
-  });
+  };
+
+  xhr.onload = function () {
+    if (xhr.status === 200) {
+      console.log("Upload complete");
+      fetchRecordings();
+    } else {
+      console.error("Upload failed");
+    }
+  };
+
+  xhr.onerror = function () {
+    console.error("Upload error");
+  };
+
+  xhr.send(formData);
 }
 
 function triggerReplacementInput(recordingId) {

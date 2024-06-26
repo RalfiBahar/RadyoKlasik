@@ -1,6 +1,8 @@
 import TrackPlayer, { Event } from "react-native-track-player";
 import { usePlayback } from "./context/PlaybackContext";
 
+// TODO: Issue event listeners triggered 4 times when playing?
+
 module.exports = async function () {
   TrackPlayer.addEventListener(Event.RemotePause, () => {
     console.log("Event.RemotePause");

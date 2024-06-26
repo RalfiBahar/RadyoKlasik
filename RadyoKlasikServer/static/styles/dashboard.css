@@ -102,7 +102,19 @@ button {
   margin-right: 10px;
 }
 
-.recording form {
+.recording .artwork {
+  margin-right: 10px;
+}
+
+.recording .artwork-container {
+  margin-right: 10;
+}
+
+.recording .artwork-container .circular-bar {
+  margin-right: 0;
+}
+
+.circular-bar::before .recording form {
   display: flex;
   align-items: center;
 }
@@ -134,4 +146,44 @@ button {
   display: flex;
   justify-content: center;
   align-items: center;
+}
+
+.artwork-container {
+  position: relative;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.circular-bar {
+  width: 50px;
+  height: 50px;
+  background: conic-gradient(var(--theme-purple) 1.5deg, #e8f0f7 0deg);
+  border-radius: 50%;
+  display: flex;
+  margin: 0;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 6px 6px 10px -1px rgba(0, 0, 0, 0.15),
+    -6px -6px 10px -1px rgba(255, 255, 255, 0.7);
+  position: relative;
+}
+
+.circular-bar::before {
+  content: "";
+  position: absolute;
+  width: 80%;
+  height: 80%;
+  background: #e8f0f7;
+  border-radius: 50%;
+  box-shadow: inset 6px 6px 10px -1px rgba(0, 0, 0, 0.15),
+    inset -6px -6px 10px -1px rgba(255, 255, 255, 0.7);
+}
+
+.percent {
+  z-index: 10;
+  font-size: 14px;
+  margin-left: 10px;
 }
