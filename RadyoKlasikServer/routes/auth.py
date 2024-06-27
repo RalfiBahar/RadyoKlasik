@@ -1,5 +1,5 @@
 import datetime
-from flask import Blueprint, jsonify, render_template, redirect, url_for, request
+from flask import Blueprint, jsonify, render_template, redirect, url_for, request, current_app
 from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required
 from flask_login import login_user, login_required, logout_user
 from models.user import User
@@ -28,19 +28,15 @@ def logout():
     logout_user()
     return redirect(url_for('auth.login'))
 
-# will come from .env
-SECRET_KEY = 'scrt'
-SHARED_SECRET = 'shrd_scrt'
-
 def generate_token():
     expiration_time = datetime.datetime.utcnow() + datetime.timedelta(hours=5)
-    token = jwt.encode({'exp': expiration_time}, SECRET_KEY, algorithm='HS256')
+    token = jwt.encode({'exp': expiration_time}, current_app.config['SECRET_KEY'], algorithm='HS256')
     return token
 
 @auth_bp.route('/generate_token', methods=['POST'])
 def generate_access_token():
     data = request.get_json()
-    if not data or data.get('shared_secret') != SHARED_SECRET:
+    if not data or data.get('shared_secret') != current_app.config['SHARED_SECRET_KEY']:
         return jsonify({'message': 'Unauthorized'}), 401
 
     token = generate_token()
@@ -50,7 +46,7 @@ def generate_access_token():
 def verify_token():
     token = request.headers.get('Authorization').split()[1]
     try:
-        jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+        jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
         return jsonify({'message': 'Token is valid'}), 200
     except jwt.ExpiredSignatureError:
         return jsonify({'message': 'Token has expired'}), 401
@@ -68,7 +64,7 @@ def token_required(f):
             return jsonify({'message': 'Token is missing!'}), 401
 
         try:
-            jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+            jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
         except jwt.ExpiredSignatureError:
             return jsonify({'error': 'token_expired', 'message': 'Token has expired!'}), 401
         except jwt.InvalidTokenError:

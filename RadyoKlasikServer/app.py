@@ -1,13 +1,18 @@
 from flask import Flask, Blueprint
 from flask_login import LoginManager
 from models.user import User
-from routes import auth, recording
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 def create_app():
     app = Flask(__name__)
     
     # will be moved to .env
-    app.config['SECRET_KEY'] = 'bd9617be2f088115cedb35df03aaeb76476ff2cfc2fe21aa13a3ea4f7514c7d5' 
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+    app.config['SHARED_SECRET_KEY'] = os.getenv('SHARED_SECRET_KEY')
+
     
     login_manager = LoginManager()
     login_manager.init_app(app)

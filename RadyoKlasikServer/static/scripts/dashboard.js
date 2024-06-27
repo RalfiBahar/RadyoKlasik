@@ -3,7 +3,6 @@ let selectedArtwork = null;
 let isExpanded = false;
 let token = null;
 // .env
-const SHARED_SECRET = "shrd_scrt";
 
 function getToken() {
   return fetch("/auth/generate_token", {
@@ -11,7 +10,7 @@ function getToken() {
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ shared_secret: SHARED_SECRET }),
+    body: JSON.stringify({ shared_secret: SHARED_SECRET_KEY }),
   })
     .then((response) => response.json())
     .then((data) => {
