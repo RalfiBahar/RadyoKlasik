@@ -19,8 +19,7 @@ import { SongData } from "../types";
 import { getRedirectedUrl } from "../helpers/getRedirectedUrl";
 import { API_URL } from "@env";
 import { usePlayback } from "../context/PlaybackContext";
-import { formatTime } from "../helpers/formatTime";
-import Slider from "@react-native-community/slider";
+import ProgressBar from "./ProgressBar";
 
 const BLUE = "#4A8EDB";
 
@@ -33,7 +32,6 @@ interface AudioButtonProps {
 const AudioButton = ({ audioUrl, songData, isRecording }: AudioButtonProps) => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const playbackState = usePlaybackState();
-  let progress = useProgress();
   const { width, height } = useWindowDimensions();
   const {
     isPlaying,
@@ -125,25 +123,7 @@ const AudioButton = ({ audioUrl, songData, isRecording }: AudioButtonProps) => {
   };
 
   const renderProgressBar = () => {
-    return (
-      <View style={styles.progressBarContainer}>
-        <Text style={{ fontSize: 20, textAlign: "left" }}>
-          {formatTime(progress.position)}
-        </Text>
-        <Slider
-          style={{ width: "100%", height: 40 }}
-          minimumValue={0}
-          maximumValue={progress.duration}
-          value={progress.position}
-          minimumTrackTintColor={BLUE}
-          maximumTrackTintColor="#000000"
-          onSlidingComplete={(value) => TrackPlayer.seekTo(value)}
-        />
-        <Text style={{ fontSize: 20, textAlign: "right" }}>
-          {formatTime(progress.duration)}
-        </Text>
-      </View>
-    );
+
   };
 
   const handlePlaybackEnd = () => {
@@ -191,7 +171,7 @@ const AudioButton = ({ audioUrl, songData, isRecording }: AudioButtonProps) => {
           />
         )}
       </TouchableOpacity>
-      {isRecording && renderProgressBar()}
+      {isRecording && <ProgressBar />}
     </View>
   );
 };
@@ -215,16 +195,5 @@ const styles = StyleSheet.create({
     borderColor: "#e5e7eb",
     marginHorizontal: 5,
   },
-  progressBarContainer: {
-    display: "flex",
-    height: 30,
-    width: "80%",
-    borderRadius: 5,
-    marginTop: 10,
-  },
-  progressBar: {
-    height: "50%",
-    backgroundColor: BLUE,
-    borderRadius: 5,
-  },
+
 });
