@@ -17,6 +17,9 @@ def login():
         if user and user.username == username and user.check_password(password):
             login_user(user)
             return redirect(url_for('dashboard.dashboard'))
+        else:
+            error = "Invalid username or password."
+            return render_template('login.html', error=error)
     return render_template('login.html')
 
 @auth_bp.route('/logout')
