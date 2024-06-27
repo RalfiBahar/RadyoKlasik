@@ -20,8 +20,7 @@ import { getRedirectedUrl } from "../helpers/getRedirectedUrl";
 import { API_URL } from "@env";
 import { usePlayback } from "../context/PlaybackContext";
 import ProgressBar from "./ProgressBar";
-
-const BLUE = "#4A8EDB";
+import theme from "../styles/theme";
 
 interface AudioButtonProps {
   audioUrl: string;
@@ -122,9 +121,7 @@ const AudioButton = ({ audioUrl, songData, isRecording }: AudioButtonProps) => {
     }
   };
 
-  const renderProgressBar = () => {
-
-  };
+  const renderProgressBar = () => {};
 
   const handlePlaybackEnd = () => {
     setIsPlaying(false);
@@ -167,7 +164,7 @@ const AudioButton = ({ audioUrl, songData, isRecording }: AudioButtonProps) => {
           <Feather
             name={isPlaying ? "stop-circle" : "play-circle"}
             size={80}
-            color={BLUE}
+            color={theme.colors.BLUE}
           />
         )}
       </TouchableOpacity>
@@ -195,5 +192,4 @@ const styles = StyleSheet.create({
     borderColor: "#e5e7eb",
     marginHorizontal: 5,
   },
-
 });

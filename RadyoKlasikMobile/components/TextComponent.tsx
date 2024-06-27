@@ -1,6 +1,7 @@
 import React from "react";
 import { Text, StyleSheet } from "react-native";
 import { normalize } from "../helpers/normalize";
+import theme from "../styles/theme";
 
 interface TextComponentProps {
   variant?: "title" | "subtitle";
@@ -22,7 +23,7 @@ const textStyles = StyleSheet.create({
     backgroundColor: "transparent",
     fontSize: normalize(20),
     padding: 10,
-    color: "black",
+    color: theme.colors.TEXT_BLACK,
     fontWeight: "bold",
   },
   subtitle: {
@@ -30,7 +31,7 @@ const textStyles = StyleSheet.create({
     backgroundColor: "transparent",
     fontSize: normalize(18),
     padding: 10,
-    color: "#6a787a",
+    color: theme.colors.SUBTITLE_GRAY,
     fontWeight: "700",
   },
 });

@@ -3,8 +3,7 @@ import { StyleSheet, View, Text } from "react-native";
 import Slider from "@react-native-community/slider";
 import { formatTime } from "../helpers/formatTime";
 import TrackPlayer, { useProgress } from "react-native-track-player";
-
-const BLUE = "#4A8EDB";
+import theme from "../styles/theme";
 
 interface ProgressBarProps {}
 
@@ -21,7 +20,7 @@ const ProgressBar: React.FC<ProgressBarProps> = () => {
         minimumValue={0}
         maximumValue={progress.duration}
         value={progress.position}
-        minimumTrackTintColor={BLUE}
+        minimumTrackTintColor={theme.colors.BLUE}
         maximumTrackTintColor="#000000"
         onSlidingComplete={(value) => TrackPlayer.seekTo(value)}
       />
@@ -42,7 +41,7 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     height: "50%",
-    backgroundColor: BLUE,
+    backgroundColor: theme.colors.BLUE,
     borderRadius: 5,
   },
 });

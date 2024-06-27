@@ -7,6 +7,7 @@ import { useRecordings } from "../../context/RecordingsContext";
 import { usePlayback } from "../../context/PlaybackContext";
 import { BackgroundImage } from "../../components";
 import { Feather } from "@expo/vector-icons";
+import theme from "../../styles/theme";
 
 const Recording = () => {
   const { id } = useLocalSearchParams();
@@ -83,10 +84,11 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "bold",
     marginBottom: 10,
+    color: theme.colors.TEXT_BLACK,
   },
   artist: {
     fontSize: 18,
-    color: "#666",
+    color: theme.colors.SUBTITLE_GRAY, //"#666",
     marginBottom: 10,
   },
   date: {
