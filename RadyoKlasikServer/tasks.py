@@ -5,14 +5,6 @@ import time
 from io import BytesIO
 import requests
 
-logger = get_task_logger(__name__)
-logger.setLevel(logging.INFO)  
-handler = logging.FileHandler('my_log.log')
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-
-
 @celery_app.task(name='tasks.record_stream')
 def record_stream(url):
     global is_recording, audio_data
