@@ -3,6 +3,7 @@ from flask_login import LoginManager
 from models.user import User
 from dotenv import load_dotenv
 import os
+from celery_config import celery_app
 
 load_dotenv()
 
@@ -12,6 +13,7 @@ def create_app():
     # will be moved to .env
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
     app.config['SHARED_SECRET_KEY'] = os.getenv('SHARED_SECRET_KEY')
+    celery_app.autodiscover_tasks(['tasks'], force=True)
 
     
     login_manager = LoginManager()
