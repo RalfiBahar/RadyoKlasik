@@ -7,6 +7,10 @@ from io import BytesIO
 celery = Celery('tasks', broker='redis://localhost:6379/0')
 
 @celery.task
+def add(x, y):
+    return x + y
+
+@celery.task
 def record_stream(url):
     global audio_data
     response = requests.get(url, stream=True)

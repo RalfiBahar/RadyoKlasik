@@ -13,7 +13,7 @@ COPY requirements.txt /app/
 
 # Install the dependencies
 RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install gunicorn
+    pip install gunicorn celery
 
 # Copy the rest of the application code to the working directory
 COPY . /app/
