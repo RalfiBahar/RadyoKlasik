@@ -3,8 +3,7 @@ from flask_login import LoginManager
 from models.user import User
 from dotenv import load_dotenv
 import os
-from celery_app import make_celery
-
+from celery import Celery
 
 load_dotenv()
 
@@ -14,13 +13,12 @@ def create_app():
     # will be moved to .env
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
     app.config['SHARED_SECRET_KEY'] = os.getenv('SHARED_SECRET_KEY')
-    app.config.from_mapping(
-        CELERY=dict(
-            broker_url="redis://localhost:6379/0",
-            result_backend="redis://localhost:6379/0",
-            task_ignore_result=True,
-        ),
-    )
+    app.config['CELERY_BROKER_URL'] = 'redis://redis:6379/0'
+    app.config['CELERY_RESULT_BACKEND'] = 'redis://redis:6379/0'
+
+    celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
+    celery.conf.update(app.config)
+    
     login_manager = LoginManager()
     login_manager.init_app(app)
     login_manager.login_view = 'auth.login'
@@ -36,9 +34,10 @@ def create_app():
     app.register_blueprint(recording_bp, url_prefix='/recording')
     app.register_blueprint(dashboard_bp)
 
-    return app
+    return app, celery
 
-app = create_app()
+app, celery = create_app()
+celery_app = celery
 
 if __name__ == "__main__":
     app.run(host='localhost', port=8001, debug=True)
