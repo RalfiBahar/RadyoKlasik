@@ -21,16 +21,13 @@ import glob
 from .auth import token_required
 from tasks import record_stream
 from celery_config import celery_app
+from tasks import record_stream, stop_recording
+import redis
+
 
 recording_bp = Blueprint('recording', __name__)
 
-is_recording = False
-record_thread = None
-audio_data = BytesIO()
-recordings_dir = "recordings"  # Directory where recordings are stored
-thumbnails_dir = "static/assets/thumbnails"
-if not os.path.exists(thumbnails_dir):
-    os.makedirs(thumbnails_dir)
+redis_client = redis.StrictRedis(host='redis', port=6379, db=0)
 
 def get_db():
     db = SessionLocal()
@@ -39,117 +36,23 @@ def get_db():
     finally:
         db.close()
 
-
-
 @recording_bp.route('/start', methods=['POST'])
 @token_required
-def start_recording():
-    global is_recording, record_thread, start_time
-    if not is_recording:
-        is_recording = True
+def start_recording_route():
+    global start_time
+    if redis_client.get('is_recording').decode('utf-8') != 'true':
         start_time = time.time()
-        print(start_time)
-        task = record_stream.delay("http://stream.radiojar.com/bw66d94ksg8uv")
-        print('RECORDING TASK STARTED WITH ID: {}'.format(task.id))
+        task = record_stream.delay("http://stream.radiojar.com/bw66d94ksg8uv", start_time)
         return jsonify({"success": True, "task_id": task.id})
     return redirect(url_for('dashboard.dashboard'))
 
 @recording_bp.route('/stop', methods=['POST'])
 @token_required
-def stop_recording():
-    global is_recording, record_thread, audio_data, start_time
-    if is_recording:
-        is_recording = False
-        print('RECORDING TASK STOPPED')
-        audio_segment = AudioSegment.from_mp3(audio_data)
-        print(time.time() - start_time)
-
-        elapsed_time = time.time() - start_time
-        recording_duration = int(elapsed_time * 1000)  
-        audio_segment = audio_segment[:recording_duration]
-
-        if not os.path.exists(recordings_dir):
-            os.makedirs(recordings_dir)
-        
-        print('EXPORTING AUDIO SEGMENT')
-        output_file_path = recordings_dir + '/' 
-        #delete hash in name
-        file_name = str(datetime.datetime.now().strftime("%d%m%Y")) + '_LiveProgramme' +  str(hash(datetime.datetime.now()))[:6]+ '.mp3'
-        file_name_w_path = output_file_path + file_name
-        print('fnwp', file_name_w_path)
-        audio_segment.export(file_name_w_path, format="mp3")
-        print(f"STREAM RECORDED AND SAVED AS: {output_file_path}")
-        selected_artwork = request.form.get('existing-artworks')
-        curr_date = datetime.datetime.today()
-        curr_date = curr_date.strftime('%d')+ '.' + curr_date.strftime('%m') + '.' + curr_date.strftime('%Y')
-        if selected_artwork:
-            artwork_path = os.path.join(thumbnails_dir, selected_artwork)
-            add_metadata(file_name_w_path, 'Morning Delight', f'Bant Yayini ({curr_date})',  '', artwork_path)
-        else:
-            list_of_files = glob.glob(os.path.join(thumbnails_dir, '*'))
-            artwork_path = max(list_of_files, key=os.path.getmtime)
-            print(artwork_path)
-            add_metadata(file_name_w_path, 'Morning Delight', f'Bant Yayini ({curr_date})',  '', artwork_path)
-
-        db = next(get_db())
-        recording_id = get_file_hash(file_name_w_path.encode('utf-8'))
-        recording_size = os.path.getsize(file_name_w_path) / (1024 * 1024)
-        print('added ', file_name_w_path)
-        new_recording = Recording(
-            id=recording_id,
-            filename=file_name,
-            stream=url_for('recording.get_recording', filename=os.path.basename(file_name)),
-            title='Morning Delight',
-            artist=f'Bant Yayini ({curr_date})',
-            album='',
-            artwork=artwork_path,
-            duration=recording_duration // 1000,  # duration in seconds
-            size=recording_size, #in MB
-            date=datetime.datetime.utcnow()
-        )
-        db.add(new_recording)
-        db.commit()
-        db.refresh(new_recording)
-
-
-        print('metadata applied')
-        start_time = None
-        audio_segment = BytesIO()
-
+def stop_recording_route():
+    if redis_client.get('is_recording').decode('utf-8') == 'true':
+        redis_client.set('is_recording', 'false')
+        return jsonify({"success": True, "message": "Recording stopped."})
     return redirect(url_for('dashboard.dashboard'))
-
-def add_metadata(file_path, title, artist, album, artwork_path):
-    audio = MP3(file_path, ID3=ID3)
-    
-    try:
-        audio.add_tags()
-    except error:
-        pass
-
-    audio.tags.add(
-        TIT2(encoding=3, text=title)
-    )
-    audio.tags.add(
-        TPE1(encoding=3, text=artist)
-    )
-    audio.tags.add(
-        TALB(encoding=3, text=album)
-    )
-
-    print(audio.tags.get('TPE1'))
-    
-    with open(artwork_path, 'rb') as albumart:
-        audio.tags.add(
-            APIC(
-                encoding=3,
-                mime='image/jpeg',
-                type=3, 
-                desc=u'Cover',
-                data=albumart.read()
-            )
-        )
-
-    audio.save()
 
 @recording_bp.route('/status', methods=['GET'])
 @token_required
