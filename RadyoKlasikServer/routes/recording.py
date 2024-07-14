@@ -19,19 +19,9 @@ from models.recording import Recording, SessionLocal
 import datetime
 import glob
 from .auth import token_required
-from celery.result import AsyncResult
-from tasks import add_together
-
-
-
 
 recording_bp = Blueprint('recording', __name__)
-@recording_bp.route('/add', methods=['POST'])
-def start_add():
-    a = request.form.get('a', type=int)
-    b = request.form.get('b', type=int)
-    result = add_together.delay(a, b)
-    return jsonify({'result_id': result.id})
+
 is_recording = False
 record_thread = None
 audio_data = BytesIO()
