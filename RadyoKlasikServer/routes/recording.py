@@ -19,6 +19,8 @@ from models.recording import Recording, SessionLocal
 import datetime
 import glob
 from .auth import token_required
+from tasks import record_stream
+from celery_config import celery_app
 
 recording_bp = Blueprint('recording', __name__)
 
@@ -38,25 +40,6 @@ def get_db():
         db.close()
 
 
-def record_stream(url):
-    global is_recording, audio_data
-    response = requests.get(url, stream=True)
-    
-    if response.status_code != 200:
-        raise Exception(f"Failed to connect to stream: {response.status_code}")
-
-    audio_data = BytesIO()
-    try:
-        for chunk in response.iter_content(chunk_size=1024):
-            if not is_recording:
-                break
-            audio_data.write(chunk)
-    except Exception as e:
-        print(f"An error occurred while recording: {e}")
-    finally:
-        response.close()
-
-    audio_data.seek(0)
 
 @recording_bp.route('/start', methods=['POST'])
 @token_required
@@ -66,9 +49,9 @@ def start_recording():
         is_recording = True
         start_time = time.time()
         print(start_time)
-        record_thread = threading.Thread(target=record_stream, args=("http://stream.radiojar.com/bw66d94ksg8uv",))
-        record_thread.start()
-        print('RECORDING THREAD STARTED')
+        task = record_stream.delay("http://stream.radiojar.com/bw66d94ksg8uv")
+        print('RECORDING TASK STARTED WITH ID: {}'.format(task.id))
+        return jsonify({"success": True, "task_id": task.id})
     return redirect(url_for('dashboard.dashboard'))
 
 @recording_bp.route('/stop', methods=['POST'])
@@ -77,9 +60,7 @@ def stop_recording():
     global is_recording, record_thread, audio_data, start_time
     if is_recording:
         is_recording = False
-        record_thread.join()
-        print('RECORDING THREAD STOPPED')
-
+        print('RECORDING TASK STOPPED')
         audio_segment = AudioSegment.from_mp3(audio_data)
         print(time.time() - start_time)
 

@@ -13,7 +13,7 @@ COPY requirements.txt /app/
 
 # Install the dependencies
 RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install gunicorn
+    pip install gunicorn celery
 
 # Copy the rest of the application code to the working directory
 COPY . /app/
@@ -22,4 +22,4 @@ COPY . /app/
 EXPOSE 8000
 
 # Run the application using gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "wsgi:app"]
+CMD ["gunicorn", "--config", "gunicorn_config.py", "wsgi:app"]
