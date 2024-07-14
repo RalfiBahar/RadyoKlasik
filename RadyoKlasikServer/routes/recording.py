@@ -1,5 +1,5 @@
 import mimetypes
-from flask import Blueprint, jsonify, redirect, url_for, send_from_directory, request
+from flask import Blueprint, jsonify, redirect, url_for, send_from_directory, request, current_app
 from flask_login import login_required
 import time
 import os
@@ -61,23 +61,23 @@ def record_stream(url):
 @recording_bp.route('/start', methods=['POST'])
 @token_required
 def start_recording():
-    global is_recording, record_thread, start_time
+    global is_recording, start_time
     if not is_recording:
         is_recording = True
         start_time = time.time()
         print(start_time)
-        record_thread = threading.Thread(target=record_stream, args=("http://stream.radiojar.com/bw66d94ksg8uv",))
-        record_thread.start()
+        task = current_app.celery.send_task('tasks.record_stream', args=["http://stream.radiojar.com/bw66d94ksg8uv"])
         print('RECORDING THREAD STARTED')
+        return jsonify({'task_id': task.id})
     return redirect(url_for('dashboard.dashboard'))
 
 @recording_bp.route('/stop', methods=['POST'])
 @token_required
 def stop_recording():
-    global is_recording, record_thread, audio_data, start_time
+    global is_recording, audio_data, start_time
     if is_recording:
         is_recording = False
-        record_thread.join()
+        #record_thread.join()
         print('RECORDING THREAD STOPPED')
 
         audio_segment = AudioSegment.from_mp3(audio_data)
