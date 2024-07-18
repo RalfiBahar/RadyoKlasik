@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" type="text/css" href="/styles/login.css" />
+    <title>Login</title>
+  </head>
+  <body>
+    <div class="container">
+      <h1><a>Administrator Dashboard Authentication</a></h1>
+      <div>
+        <div class="formbg">
+          <div class="formbg-inner padding-horizontal--48">
+            <span class="padding-bottom--15">Sign in to your account</span>
+            <form method="post" action="/auth/login">
+              <div class="field padding-bottom--24">
+                <label for="username">Username</label>
+                <input type="text" name="username" placeholder="Username" />
+              </div>
+              <div class="field padding-bottom--24">
+                <label for="password">Password</label>
+                <input type="password" name="password" placeholder="Password" />
+              </div>
+              <% if (error) { %>
+              <p style="color: red"><%= error %></p>
+              <% } %>
+              <div class="field padding-bottom--24">
+                <input type="submit" name="submit" value="Continue" />
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
