@@ -20,10 +20,11 @@ interface RecordingItemProps {
 }
 
 const RecordingItem: React.FC<RecordingItemProps> = ({ recording }) => {
+  const API_URI = API_URL;
   return (
     <View style={styles.container}>
       <Image
-        source={{ uri: `${API_URL}/${recording.artwork}` }}
+        source={{ uri: `${API_URI}/${recording.artwork}` }}
         style={styles.artwork}
       />
 

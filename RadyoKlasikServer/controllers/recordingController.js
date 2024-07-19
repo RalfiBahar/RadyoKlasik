@@ -43,6 +43,7 @@ function getFileHash(fileContent) {
 
 // Helper function to add metadata to MP3 files
 function addMetadata(filePath, title, artist, album, artworkPath) {
+  console.log("artworkpath", artworkPath);
   const tags = {
     title: title,
     artist: artist,
@@ -84,7 +85,7 @@ router.post("/start", tokenRequired, (req, res) => {
   recordingProcess.on("message", async (message) => {
     if (message.status === "finished") {
       console.log("Recording finished, processing the file");
-
+      console.log(message.duration);
       // Apply metadata and add to the database
       const filePath = message.filePath;
       const duration = message.duration;
@@ -114,12 +115,13 @@ router.post("/start", tokenRequired, (req, res) => {
         artworkPath
       );
 
+      console.log("ADDING METADATA", artworkPath);
       addMetadata(
         filePath,
         "Morning Delight",
         `Bant Yayini (${currDate})`,
         "",
-        relativeArtworkPath
+        artworkPath
       );
 
       const recordingSize = fs.statSync(filePath).size / (1024 * 1024); // size in MB
@@ -131,7 +133,7 @@ router.post("/start", tokenRequired, (req, res) => {
         artist: `Bant Yayini (${currDate})`,
         album: "",
         artwork: relativeArtworkPath,
-        duration: Math.floor(duration / 1000), // duration in seconds
+        duration: Math.floor(duration), // duration in seconds
         size: recordingSize, // in MB
         date: new Date(),
       });
@@ -184,14 +186,14 @@ router.get("/status", tokenRequired, (req, res) => {
 
 // Get recording file
 //token
-router.get("/recordings/:filename", async (req, res) => {
+router.get("/recordings/:filename", tokenRequired, async (req, res) => {
   const filename = req.params.filename;
   try {
     const recording = await Recording.findOne({ where: { filename } });
     if (!recording) {
       return res.status(404).json({ error: "Recording not found" });
     }
-    console.log(recording);
+    //console.log(recording);
 
     recording.play_count += 1;
     await recording.save();

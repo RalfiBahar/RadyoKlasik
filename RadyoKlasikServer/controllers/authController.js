@@ -22,7 +22,6 @@ exports.login = (req, res) => {
 };
 
 exports.logout = (req, res) => {
-  console.log("he");
   req.session.destroy(() => {
     res.redirect("/auth/login");
   });
@@ -30,8 +29,6 @@ exports.logout = (req, res) => {
 
 exports.generateAccessToken = (req, res) => {
   const { shared_secret } = req.body;
-  console.log(shared_secret);
-  console.log(process.env.SHARED_SECRET_KEY);
 
   if (shared_secret !== process.env.SHARED_SECRET_KEY) {
     return res.status(401).json({ message: "Unauthorized" });

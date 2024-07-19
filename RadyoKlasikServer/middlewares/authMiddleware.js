@@ -10,7 +10,13 @@ exports.tokenRequired = (req, res, next) => {
     jwt.verify(token, process.env.SECRET_KEY);
     next();
   } catch (error) {
-    res.status(401).json({ message: "Invalid token!" });
+    if (error instanceof jwt.TokenExpiredError) {
+      return res
+        .status(401)
+        .json({ error: "token_expired", message: "Token has expired!" });
+    } else {
+      return res.status(401).json({ message: "Invalid token!" });
+    }
   }
 };
 
