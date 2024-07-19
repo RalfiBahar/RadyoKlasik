@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { Link } from "expo-router";
 import RecordingItem from "../../components/RecordingItem";
-import { API_URL } from "@env";
+import { EXPO_PUBLIC_API_URL } from "@env";
 import { useRecordings } from "../../context/RecordingsContext";
 import { usePlayback } from "../../context/PlaybackContext";
 import { BackgroundImage } from "../../components";
@@ -23,7 +23,7 @@ const RecordingList = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const apiRoute = `${API_URL}/recording/recordings`;
+    const apiRoute = `${EXPO_PUBLIC_API_URL}/recording/recordings`;
     console.log("route", apiRoute);
     fetchWithAuth(apiRoute)
       .then((response) => response.json())

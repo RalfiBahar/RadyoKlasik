@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { API_URL, SHARED_SECRET } from "@env";
+import { EXPO_PUBLIC_API_URL, EXPO_PUBLIC_SHARED_SECRET } from "@env";
 
 let token: string | null = null;
 
@@ -9,13 +9,15 @@ interface TokenResponse {
 }
 
 export async function getToken(): Promise<string | null> {
-  console.log(`${API_URL}/auth/generate_token`);
-  const response = await fetch(`${API_URL}/auth/generate_token`, {
+  console.log(`${EXPO_PUBLIC_API_URL}/auth/generate_token`);
+  const response = await fetch(`${EXPO_PUBLIC_API_URL}/auth/generate_token`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ shared_secret: SHARED_SECRET }),
+    body: JSON.stringify({
+      EXPO_PUBLIC_SHARED_SECRET: EXPO_PUBLIC_SHARED_SECRET,
+    }),
   });
   const data: TokenResponse = await response.json();
   if (data.access_token) {

@@ -17,7 +17,7 @@ import TrackPlayer, {
 } from "react-native-track-player";
 import { SongData } from "../types";
 import { getRedirectedUrl } from "../helpers/getRedirectedUrl";
-import { API_URL } from "@env";
+import { EXPO_PUBLIC_API_URL } from "@env";
 import { usePlayback } from "../context/PlaybackContext";
 import ProgressBar from "./ProgressBar";
 import theme from "../styles/theme";
@@ -69,7 +69,7 @@ const AudioButton = ({ audioUrl, songData, isRecording }: AudioButtonProps) => {
       //console.log(progress.position / progress.duration);
       //console.log(activeTrack?.url, "cu");
 
-      let redirectedUrl = `${API_URL}/${audioUrl}`;
+      let redirectedUrl = `${EXPO_PUBLIC_API_URL}/${audioUrl}`;
       console.log("REEEED", redirectedUrl);
       if (!isRecording) {
         redirectedUrl = await getRedirectedUrl(audioUrl);

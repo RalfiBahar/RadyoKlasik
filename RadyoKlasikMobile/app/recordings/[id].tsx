@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, Image, StyleSheet, TouchableOpacity } from "react-native";
 import { Link, useLocalSearchParams } from "expo-router";
-import { API_URL } from "@env";
+import { EXPO_PUBLIC_API_URL } from "@env";
 import AudioButton from "../../components/AudioButton";
 import { useRecordings } from "../../context/RecordingsContext";
 import { usePlayback } from "../../context/PlaybackContext";
@@ -43,7 +43,7 @@ const Recording = () => {
     title: recording.title,
     artist: recording.artist,
     duration: recording.duration,
-    thumb: `${API_URL}/${recording.artwork}`,
+    thumb: `${EXPO_PUBLIC_API_URL}/${recording.artwork}`,
   };
 
   const streamWithToken = `${recording.stream}?token=${token}`;

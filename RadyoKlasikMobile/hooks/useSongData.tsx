@@ -1,7 +1,11 @@
 import { useState, useEffect } from "react";
 import { SongData } from "../types";
 
-const useSongData = (apiUrl: string, intervalTime: number = 5000) => {
+const useSongData = (
+  apiUrl: string,
+  key: number,
+  intervalTime: number = 5000
+) => {
   const [songData, setSongData] = useState<SongData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,7 +37,7 @@ const useSongData = (apiUrl: string, intervalTime: number = 5000) => {
     fetchSongData();
     const interval = setInterval(fetchSongData, intervalTime);
     return () => clearInterval(interval);
-  }, [apiUrl, intervalTime]);
+  }, [apiUrl, key, intervalTime]);
 
   return { songData, error };
 };

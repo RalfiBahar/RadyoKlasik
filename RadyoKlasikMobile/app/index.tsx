@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   StyleSheet,
   View,
@@ -8,6 +8,7 @@ import {
   Image,
   Alert,
   useWindowDimensions,
+  Button,
 } from "react-native";
 import {
   AudioButton,
@@ -24,11 +25,18 @@ import { Feather } from "@expo/vector-icons";
 import { usePlayback } from "../context/PlaybackContext";
 
 export default function App() {
+  const [reloadKey, setReloadKey] = useState<number>(0);
   const { songData, error } = useSongData(
-    "https://www.radiojar.com/api/stations/bw66d94ksg8uv/now_playing/"
+    "https://www.radiojar.com/api/stations/bw66d94ksg8uv/now_playing/",
+    reloadKey
   );
   const { width, height } = useWindowDimensions();
   const { resetTrack } = usePlayback();
+
+  const reloadPage = () => {
+    setReloadKey((prevKey) => prevKey + 1);
+    console.log(reloadKey);
+  };
 
   if (error) {
     return (
@@ -48,7 +56,10 @@ export default function App() {
           }}
         >
           {/* do not show {error}*/}
-          <Text style={styles.errorText}>Error: {error}, Try again later</Text>
+          <Text style={styles.errorText}>
+            Error: {error ? error + "," : ""} please try again later.
+          </Text>
+          <Button onPress={reloadPage} title="Reload" />
         </View>
       </SafeAreaView>
     );
@@ -112,8 +123,8 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   loadingText: {
-    fontSize: 18,
-    color: "gray",
+    fontSize: 22,
+    color: "black",
   },
   errorText: {
     fontSize: 24,

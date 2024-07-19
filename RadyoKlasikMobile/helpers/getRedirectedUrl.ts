@@ -1,9 +1,9 @@
-import { API_URL } from "@env";
+import { EXPO_PUBLIC_API_URL } from "@env";
 import { fetchWithAuth } from "./token";
 
 export const getRedirectedUrl = async (url: string) => {
   try {
-    const apiRoute = `${API_URL}/recording/get_redirect`;
+    const apiRoute = `${EXPO_PUBLIC_API_URL}/recording/get_redirect`;
     console.log("apiroute", apiRoute);
 
     const response = await fetchWithAuth(apiRoute, {

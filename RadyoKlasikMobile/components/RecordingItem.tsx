@@ -1,6 +1,6 @@
 import React from "react";
 import { StyleSheet, View, Text, Image } from "react-native";
-import { API_URL } from "@env";
+import { EXPO_PUBLIC_API_URL } from "@env";
 import { formatTime } from "../helpers/formatTime";
 
 interface RecordingItemProps {
@@ -20,7 +20,7 @@ interface RecordingItemProps {
 }
 
 const RecordingItem: React.FC<RecordingItemProps> = ({ recording }) => {
-  const ARTWORK_URI = `${API_URL}/${recording.artwork}`;
+  const ARTWORK_URI = `${EXPO_PUBLIC_API_URL}/${recording.artwork}`;
   return (
     <View style={styles.container}>
       <Image source={{ uri: ARTWORK_URI }} style={styles.artwork} />
