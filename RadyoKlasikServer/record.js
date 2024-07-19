@@ -9,7 +9,6 @@ const path = require("path");
 let recordingStream;
 let recordingProcess;
 
-// Get the URL from command line arguments
 const url = process.argv[2];
 if (!url) {
   console.error("No URL provided.");
@@ -31,7 +30,7 @@ const generateFileName = (prefix = "") => {
 
 const recordingStartTime = Date.now();
 const outputDir = path.join(__dirname, "recordings");
-const dateString = new Date().toISOString().replace(/:/g, "-"); // Replace colons to make it filesystem friendly
+const dateString = new Date().toISOString().replace(/:/g, "-");
 const outputFilePath = path.join(outputDir, generateFileName());
 const tempFilePath = path.join(outputDir, generateFileName("temp"));
 
@@ -62,12 +61,6 @@ async function recordStream(url) {
           process.send({ status: "stopped" });
           process.exit(0);
         }
-        /*process.send({
-          status: "finished",
-          filePath: outputFilePath,
-          duration: Date.now() - recordingStartTime,
-        });*/
-        //process.exit(0);
       })
       .on("error", (error) => {
         process.send({ status: "error", error: error.message });
@@ -120,12 +113,6 @@ process.on("message", (msg) => {
     console.log("Stopping recording...");
     recordingStream.end();
     isRecordingStopped = true;
-    /*
-    recordingStream.end();
-    recordingProcess.on("end", () => {
-      process.send({ status: "stopped" });
-      process.exit(0);
-    });*/
   }
 });
 

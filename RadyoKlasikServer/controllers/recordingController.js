@@ -10,6 +10,7 @@ const md5 = require("md5");
 const NodeID3 = require("node-id3");
 const { Sequelize } = require("sequelize");
 const { spawn } = require("child_process");
+const logger = require("../logger");
 const router = Router();
 const upload = multer();
 
@@ -27,9 +28,11 @@ const thumbnailsDir = path.join(
 );
 if (!fs.existsSync(thumbnailsDir)) {
   fs.mkdirSync(thumbnailsDir, { recursive: true });
+  logger.info("Thumbnails directory created");
 }
 if (!fs.existsSync(recordingsDir)) {
   fs.mkdirSync(recordingsDir, { recursive: true });
+  logger.info("Recordings directory created");
 }
 
 async function getDb() {
@@ -43,7 +46,7 @@ function getFileHash(fileContent) {
 
 // Helper function to add metadata to MP3 files
 function addMetadata(filePath, title, artist, album, artworkPath) {
-  console.log("artworkpath", artworkPath);
+  logger.info("Adding metadata to file", { filePath, artworkPath });
   const tags = {
     title: title,
     artist: artist,
@@ -53,7 +56,7 @@ function addMetadata(filePath, title, artist, album, artworkPath) {
 
   NodeID3.write(tags, filePath, (err) => {
     if (err) {
-      console.error("Error writing ID3 tags:", err);
+      logger.error("Error writing ID3 tags:", err);
     }
   });
 }
@@ -64,10 +67,6 @@ router.post("/start", tokenRequired, (req, res) => {
     return res.status(400).json({ message: "Recording already in progress" });
   }
 
-  /*const { url } = req.body;
-  if (!url) {
-    return res.status(400).json({ message: "URL is required" });
-  }*/
   const url = "http://stream.radiojar.com/bw66d94ksg8uv";
 
   const scriptPath = path.join(__dirname, "..", "record.js");
@@ -76,16 +75,18 @@ router.post("/start", tokenRequired, (req, res) => {
   });
   isRecording = true;
   recordingStartTime = Date.now();
+  logger.info("Recording started", { url });
 
   durationInterval = setInterval(() => {
     const elapsedSeconds = Math.floor((Date.now() - recordingStartTime) / 1000);
-    console.log(`Recording duration: ${elapsedSeconds} seconds`);
-  }, 1000); // Log every second
+    logger.info(`Recording duration: ${elapsedSeconds} seconds`);
+  }, 1000);
 
   recordingProcess.on("message", async (message) => {
     if (message.status === "finished") {
-      console.log("Recording finished, processing the file");
-      console.log(message.duration);
+      logger.info("Recording finished, processing the file", {
+        duration: message.duration,
+      });
       // Apply metadata and add to the database
       const filePath = message.filePath;
       const duration = message.duration;
@@ -115,7 +116,7 @@ router.post("/start", tokenRequired, (req, res) => {
         artworkPath
       );
 
-      console.log("ADDING METADATA", artworkPath);
+      logger.info("Adding metadata", { artworkPath });
       addMetadata(
         filePath,
         "Morning Delight",
@@ -135,19 +136,22 @@ router.post("/start", tokenRequired, (req, res) => {
         artwork: relativeArtworkPath,
         duration: Math.floor(duration), // duration in seconds
         size: recordingSize, // in MB
+        play_count: 0,
         date: new Date(),
       });
 
-      console.log("Recording processed and saved");
+      logger.info("Recording processed and saved", { newRecording });
     } else if (message.status === "error") {
-      console.error("Recording process encountered an error:", message.error);
+      logger.error("Recording process encountered an error", {
+        error: message.error,
+      });
     } else if (message.status === "stopped") {
-      console.log("Recording stopped gracefully");
+      logger.info("Recording stopped gracefully");
     }
   });
 
   recordingProcess.on("exit", (code) => {
-    console.log(`Recording process exited with code ${code}`);
+    logger.info(`Recording process exited with code ${code}`);
     isRecording = false;
     recordingProcess = null;
     recordingStartTime = null;
@@ -167,6 +171,7 @@ router.post("/stop", tokenRequired, (req, res) => {
   isRecording = false;
   recordingStartTime = null;
   clearInterval(durationInterval);
+  logger.info("Recording stop signal sent");
   res.json({ message: "Recording stop signal sent" });
 });
 
@@ -191,14 +196,19 @@ router.get("/recordings/:filename", tokenRequired, async (req, res) => {
   try {
     const recording = await Recording.findOne({ where: { filename } });
     if (!recording) {
+      logger.warn("Recording not found", { filename });
       return res.status(404).json({ error: "Recording not found" });
     }
-    //console.log(recording);
 
     recording.play_count += 1;
     await recording.save();
+    logger.info("Retrieving recording file", {
+      filename,
+      play_count: recording.play_count,
+    });
     return res.sendFile(path.join(recordingsDir, filename));
   } catch (e) {
+    logger.error("Error retrieving recording file", { error: e });
     return res.status(404).json({ error: String(e) });
   }
 });
@@ -219,9 +229,12 @@ router.get("/recordings", tokenRequired, async (req, res) => {
       date: recording.date,
       stream: recording.stream,
       play_count: recording.play_count,
+      special: recording.special,
     }));
+    logger.info("Recordings list retrieved", { count: recordingsList.length });
     return res.json({ recordings: recordingsList });
   } catch (e) {
+    logger.error("Error retrieving recordings list", { error: e });
     return res.status(500).json({ error: String(e) });
   }
 });
@@ -231,13 +244,16 @@ router.get("/get_redirect", tokenRequired, async (req, res) => {
   try {
     const finalUrl = await getFinalMp3Url(baseUrl);
     if (finalUrl) {
+      logger.info("Redirect MP3 stream URL retrieved", { finalUrl });
       return res.json({ url: finalUrl });
     } else {
+      logger.error("Failed to retrieve the redirect MP3 stream URL");
       return res
         .status(500)
         .json({ error: "Failed to retrieve the redirect MP3 stream URL" });
     }
   } catch (e) {
+    logger.error("Error retrieving redirect MP3 stream URL", { error: e });
     return res.status(500).json({ error: String(e) });
   }
 });
@@ -252,7 +268,7 @@ async function getFinalMp3Url(baseUrl) {
         if ([301, 302, 303, 307, 308].includes(response.statusCode)) {
           const redirectUrl = response.headers.location;
           if (redirectUrl) {
-            console.log(`Redirecting to: ${redirectUrl}`);
+            // logger.info("Redirecting to new URL", { redirectUrl });
             resolve(redirectUrl);
           } else {
             reject(new Error("Redirect URL not found"));
@@ -263,13 +279,14 @@ async function getFinalMp3Url(baseUrl) {
       });
 
       conn.on("error", (err) => {
+        logger.error("Error in HTTP request", { error: err });
         reject(err);
       });
 
       conn.end();
     });
   } catch (e) {
-    console.error(`An error occurred: ${e}`);
+    logger.error("Error occurred while processing URL", { error: e });
     return null;
   }
 }
@@ -278,6 +295,7 @@ async function getFinalMp3Url(baseUrl) {
 router.post("/upload_artwork", upload.single("artwork"), async (req, res) => {
   const file = req.file;
   if (!file) {
+    logger.warn("No file part in upload request");
     return res.status(400).json({ error: "No file part" });
   }
 
@@ -293,6 +311,7 @@ router.post("/upload_artwork", upload.single("artwork"), async (req, res) => {
   const filename = `${fileHash}.${extension}`;
   const filePath = path.join(thumbnailsDir, filename);
   fs.writeFileSync(filePath, fileContent);
+  logger.info("Artwork uploaded", { filename });
 
   return res.redirect("/dashboard");
 });
@@ -308,8 +327,10 @@ router.get("/get_artworks", tokenRequired, (req, res) => {
         fs.statSync(path.join(thumbnailsDir, b)).mtime.getTime() -
         fs.statSync(path.join(thumbnailsDir, a)).mtime.getTime()
     );
+    logger.info("Artworks list retrieved", { count: artworks.length });
     return res.json(artworks);
   } catch (e) {
+    logger.error("Error retrieving artworks list", { error: e });
     return res.status(500).json({ error: String(e) });
   }
 });
@@ -323,6 +344,7 @@ router.post(
     const recordingId = req.body.recording_id;
     const file = req.file;
     if (!recordingId || !file) {
+      logger.warn("Invalid request for replacing recording", { recordingId });
       return res.status(400).json({ error: "Invalid request" });
     }
 
@@ -331,6 +353,7 @@ router.post(
         where: { id: recordingId },
       });
       if (!existingRecording) {
+        logger.warn("Recording not found for replacement", { recordingId });
         return res.status(404).json({ error: "Recording not found" });
       }
 
@@ -339,6 +362,7 @@ router.post(
         existingRecording.filename
       );
       fs.writeFileSync(replacementPath, file.buffer);
+      logger.info("Recording replaced", { recordingId });
 
       const recordingSize = fs.statSync(replacementPath).size / (1024 * 1024); // size in MB
       const musicMetadata = await import("music-metadata");
@@ -379,11 +403,15 @@ router.post(
         existingRecording.artwork = `/static/assets/thumbnails/${artworkFilename}`;
       }
 
-      await existingRecording.save(); // Save the updated recording
+      await existingRecording.save();
+      logger.info("Recording metadata updated after replacement", {
+        recordingId,
+      });
       return res.json({
         message: "Recording replaced and updated successfully",
       });
     } catch (e) {
+      logger.error("Error replacing recording", { error: e });
       return res.status(400).json({ error: String(e) });
     }
   }
@@ -398,6 +426,7 @@ router.delete("/remove/:recording_id", tokenRequired, async (req, res) => {
       where: { id: recordingId },
     });
     if (!existingRecording) {
+      logger.warn("Recording not found for removal", { recordingId });
       return res.status(404).json({ error: "Recording not found" });
     }
 
@@ -408,8 +437,10 @@ router.delete("/remove/:recording_id", tokenRequired, async (req, res) => {
 
     await existingRecording.destroy();
 
+    logger.info("Recording removed successfully", { recordingId });
     return res.json({ message: "Recording removed successfully" });
   } catch (e) {
+    logger.error("Error removing recording", { error: e });
     return res.status(400).json({ error: String(e) });
   }
 });
@@ -423,6 +454,7 @@ router.delete(
     const artworkPath = path.join(thumbnailsDir, artworkFilename);
 
     if (!fs.existsSync(artworkPath)) {
+      logger.warn("Artwork not found for removal", { artworkFilename });
       return res.status(404).json({ error: "Artwork not found" });
     }
 
@@ -440,14 +472,19 @@ router.delete(
       });
 
       if (recordingsUsingArtwork > 0) {
+        logger.warn("Artwork is being used by one or more recordings", {
+          artworkFilename,
+        });
         return res
           .status(400)
           .json({ error: "Artwork is being used by one or more recordings" });
       }
 
       fs.unlinkSync(artworkPath);
+      logger.info("Artwork removed successfully", { artworkFilename });
       return res.json({ message: "Artwork removed successfully" });
     } catch (e) {
+      logger.error("Error removing artwork", { error: e });
       return res.status(400).json({ error: String(e) });
     }
   }

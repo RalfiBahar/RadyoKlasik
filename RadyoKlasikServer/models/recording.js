@@ -1,5 +1,6 @@
 const { Sequelize, DataTypes } = require("sequelize");
 const { sequelize } = require("../config/database");
+const logger = require("../logger");
 
 const Recording = sequelize.define(
   "Recording",
@@ -41,6 +42,14 @@ const Recording = sequelize.define(
       type: DataTypes.FLOAT,
       allowNull: false,
     },
+    play_count: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    special: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     date: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -50,5 +59,9 @@ const Recording = sequelize.define(
     timestamps: true,
   }
 );
+
+sequelize.sync({ alter: true }).then(() => {
+  logger.info("Database & tables updated!");
+});
 
 module.exports = Recording;

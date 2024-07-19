@@ -7,6 +7,7 @@ const dashboardRoutes = require("./routes/dashboardRoutes");
 const path = require("path");
 const { sequelize } = require("./config/database");
 const Recording = require("./models/recording");
+const logger = require("./logger");
 
 dotenv.config();
 
@@ -35,7 +36,7 @@ app.use("/", dashboardRoutes);
 (async () => {
   try {
     await sequelize.sync({ force: false });
-    console.log("Database synchronized");
+    logger.info("Database synchronized");
   } catch (error) {
     console.error("Unable to synchronize the database:", error);
   }
