@@ -69,7 +69,8 @@ const AudioButton = ({ audioUrl, songData, isRecording }: AudioButtonProps) => {
       //console.log(progress.position / progress.duration);
       //console.log(activeTrack?.url, "cu");
 
-      let redirectedUrl = `${API_URL}${audioUrl}`;
+      const API_URI = API_URL;
+      let redirectedUrl = `${API_URI}/${audioUrl}`;
       if (!isRecording) {
         redirectedUrl = await getRedirectedUrl(audioUrl);
       }

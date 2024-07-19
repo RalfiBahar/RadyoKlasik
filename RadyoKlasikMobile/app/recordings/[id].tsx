@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, Image, StyleSheet, TouchableOpacity } from "react-native";
 import { Link, useLocalSearchParams } from "expo-router";
 import { API_URL } from "@env";
@@ -8,15 +8,30 @@ import { usePlayback } from "../../context/PlaybackContext";
 import { BackgroundImage } from "../../components";
 import { Feather } from "@expo/vector-icons";
 import theme from "../../styles/theme";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const Recording = () => {
   const { id } = useLocalSearchParams();
   const { recordings } = useRecordings();
   const { resetTrack } = usePlayback();
+  const [token, setToken] = useState<string | null>(null);
 
   const recording = recordings.find((r) => r.id === id);
 
-  if (!recording) {
+  useEffect(() => {
+    const getToken = async () => {
+      try {
+        const storedToken = await AsyncStorage.getItem("token");
+        console.log(storedToken);
+        setToken(storedToken);
+      } catch (error) {
+        console.error("Failed to fetch token", error);
+      }
+    };
+    getToken();
+  }, []);
+
+  if (!recording || !token) {
     return (
       <View style={styles.loader}>
         <Text>Loading...</Text>
@@ -32,6 +47,8 @@ const Recording = () => {
     thumb: `${API_URL}/${recording.artwork}`,
   };
 
+  const streamWithToken = `${recording.stream}?token=${token}`;
+
   return (
     <View style={styles.container}>
       <BackgroundImage />
@@ -39,10 +56,7 @@ const Recording = () => {
         <Feather name="arrow-left" size={24} color="black" />
         <Text style={styles.backButtonText}>Back</Text>
       </Link>
-      <Image
-        source={{ uri: `${API_URL}/${recording.artwork}` }}
-        style={styles.artwork}
-      />
+      <Image source={{ uri: songData.thumb }} style={styles.artwork} />
       <View style={styles.details}>
         <Text style={styles.title}>{recording.title}</Text>
         <Text style={styles.artist}>{recording.artist}</Text>
@@ -50,7 +64,7 @@ const Recording = () => {
           {new Date(recording.date).toLocaleDateString()}
   </Text>*/}
         <AudioButton
-          audioUrl={recording.stream}
+          audioUrl={streamWithToken}
           songData={songData}
           isRecording={true}
         />

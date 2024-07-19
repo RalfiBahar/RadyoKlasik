@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Dashboard</title>
+    <link rel="stylesheet" type="text/css" href="/styles/dashboard.css" />
+    <script>
+      const SHARED_SECRET_KEY = "<%= shared_secret_key %>";
+    </script>
+    <script src="/scripts/dashboard.js" defer></script>
+  </head>
+  <body>
+    <h1>Admin Dashboard</h1>
+    <h2 style="font-weight: 400">Haymi, welcome to the admin dashboard!</h2>
+    <form
+      id="logout-form"
+      action="/auth/logout"
+      method="POST"
+      style="display: inline"
+    >
+      <a
+        href="#"
+        onclick="document.getElementById('logout-form').submit();"
+        style="
+          color: var(--theme-purple);
+          text-decoration: underline;
+          cursor: pointer;
+        "
+        >Logout</a
+      >
+    </form>
+    <button id="expand-button" onclick="toggleExpand()">Expand</button>
+    <div style="display: flex; flex-direction: row">
+      <div>
+        <div class="card">
+          <h2>MP3 Stream Recorder</h2>
+          <div
+            style="
+              display: flex;
+              flex-direction: row;
+              justify-content: center;
+              align-items: center;
+            "
+          >
+            <div id="rec-stat" class="recording-status-div">
+              <p id="recording-time">Not recording.</p>
+            </div>
+            <div>
+              <form
+                action="javascript:void(0);"
+                method="post"
+                onsubmit="startRecording()"
+              >
+                <button type="submit">Start Recording</button>
+              </form>
+              <form
+                action="javascript:void(0);"
+                method="post"
+                onsubmit="stopRecording()"
+              >
+                <button type="submit">Stop Recording</button>
+              </form>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Upload New Artwork</h2>
+          <form
+            action="/recording/upload_artwork"
+            method="post"
+            enctype="multipart/form-data"
+            id="upload-artwork-form"
+          >
+            <div class="flex-center-center">
+              <button
+                type="button"
+                onclick="triggerFileInput()"
+                style="background-color: #6daf4e; box-shadow: none"
+              >
+                Upload Artwork
+                <input
+                  type="file"
+                  name="artwork"
+                  accept="image/*"
+                  id="file-upload-input"
+                  style="display: none"
+                  onchange="autoSubmitForm()"
+                />
+              </button>
+              <button
+                type="button"
+                onclick="removeSelectedArtwork()"
+                style="background-color: var(--theme-red); box-shadow: none"
+              >
+                Remove Artwork
+              </button>
+            </div>
+          </form>
+          <h2 style="margin-top: 15px">Select Existing Artwork</h2>
+          <div id="artworks-container">
+            <!-- Artworks will be populated by JavaScript -->
+          </div>
+        </div>
+      </div>
+      <div class="card" style="width: fit-content">
+        <h2>Past Recordings</h2>
+        <div id="recordings-container">
+          <!-- Recordings will be populated by JavaScript -->
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

@@ -23,7 +23,8 @@ const RecordingList = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchWithAuth(`${API_URL}/recording/recordings`)
+    const apiRoute = `${API_URL}/recording/recordings`;
+    fetchWithAuth(apiRoute)
       .then((response) => response.json())
       .then((data) => {
         setRecordings(data.recordings);

@@ -1,0 +1,12 @@
+{
+  "watch": [
+    "app.js",
+    "server.js",
+    "controllers",
+    "routes",
+    "models",
+    "middlewares"
+  ],
+  "ext": "js",
+  "exec": "node server.js"
+}
