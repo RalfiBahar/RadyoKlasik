@@ -9,7 +9,7 @@ interface TokenResponse {
 }
 
 export async function getToken(): Promise<string | null> {
-  //console.log(`${API_URL}/auth/generate_token`);
+  console.log(`${API_URL}/auth/generate_token`);
   const response = await fetch(`${API_URL}/auth/generate_token`, {
     method: "POST",
     headers: {
@@ -60,7 +60,7 @@ export async function fetchWithAuth(
 
 export async function initializeToken(): Promise<void> {
   token = await AsyncStorage.getItem("token");
-  //console.log("token", token);
+  console.log("token", token);
 
   if (!token) {
     token = await getToken();

@@ -24,6 +24,7 @@ const RecordingList = () => {
 
   useEffect(() => {
     const apiRoute = `${API_URL}/recording/recordings`;
+    console.log("route", apiRoute);
     fetchWithAuth(apiRoute)
       .then((response) => response.json())
       .then((data) => {

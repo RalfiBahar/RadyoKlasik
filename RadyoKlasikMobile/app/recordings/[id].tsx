@@ -22,7 +22,6 @@ const Recording = () => {
     const getToken = async () => {
       try {
         const storedToken = await AsyncStorage.getItem("token");
-        console.log(storedToken);
         setToken(storedToken);
       } catch (error) {
         console.error("Failed to fetch token", error);
@@ -48,7 +47,7 @@ const Recording = () => {
   };
 
   const streamWithToken = `${recording.stream}?token=${token}`;
-
+  console.log(streamWithToken);
   return (
     <View style={styles.container}>
       <BackgroundImage />

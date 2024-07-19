@@ -204,7 +204,7 @@ router.get("/recordings/:filename", tokenRequired, async (req, res) => {
 });
 
 // Get recordings list
-router.get("/recordings", async (req, res) => {
+router.get("/recordings", tokenRequired, async (req, res) => {
   try {
     const recordings = await Recording.findAll({ order: [["date", "DESC"]] });
     const recordingsList = recordings.map((recording) => ({

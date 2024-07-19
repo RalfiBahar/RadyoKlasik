@@ -4,7 +4,8 @@ import { fetchWithAuth } from "./token";
 export const getRedirectedUrl = async (url: string) => {
   try {
     const apiRoute = `${API_URL}/recording/get_redirect`;
-    //console.log("apiroute", apiRoute);
+    console.log("apiroute", apiRoute);
+
     const response = await fetchWithAuth(apiRoute, {
       method: "GET",
     });

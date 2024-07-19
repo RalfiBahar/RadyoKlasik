@@ -69,12 +69,12 @@ const AudioButton = ({ audioUrl, songData, isRecording }: AudioButtonProps) => {
       //console.log(progress.position / progress.duration);
       //console.log(activeTrack?.url, "cu");
 
-      const API_URI = API_URL;
-      let redirectedUrl = `${API_URI}/${audioUrl}`;
+      let redirectedUrl = `${API_URL}/${audioUrl}`;
+      console.log("REEEED", redirectedUrl);
       if (!isRecording) {
         redirectedUrl = await getRedirectedUrl(audioUrl);
       }
-      console.log(isFinished);
+      //console.log(isFinished);
       if (activeTrackId === trackId) {
         // Same track is already playing
         if (playbackState.state === State.Playing) {
