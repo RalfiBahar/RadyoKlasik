@@ -16,7 +16,7 @@ export async function getToken(): Promise<string | null> {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      EXPO_PUBLIC_SHARED_SECRET: EXPO_PUBLIC_SHARED_SECRET,
+      shared_secret: EXPO_PUBLIC_SHARED_SECRET,
     }),
   });
   const data: TokenResponse = await response.json();
