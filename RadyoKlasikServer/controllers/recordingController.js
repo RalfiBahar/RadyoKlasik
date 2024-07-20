@@ -10,6 +10,7 @@ const md5 = require("md5");
 const NodeID3 = require("node-id3");
 const { Sequelize } = require("sequelize");
 const { spawn } = require("child_process");
+const convertToHttps = require("../utils/convertToHttps");
 const logger = require("../logger");
 const router = Router();
 const upload = multer();
@@ -269,7 +270,7 @@ async function getFinalMp3Url(baseUrl) {
           const redirectUrl = response.headers.location;
           if (redirectUrl) {
             // logger.info("Redirecting to new URL", { redirectUrl });
-            resolve(redirectUrl);
+            resolve(convertToHttps(redirectUrl));
           } else {
             reject(new Error("Redirect URL not found"));
           }
