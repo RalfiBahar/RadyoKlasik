@@ -26,18 +26,11 @@ import { usePlayback } from "../context/PlaybackContext";
 import "expo-asset";
 
 export default function App() {
-  const [reloadKey, setReloadKey] = useState<number>(0);
-  const { songData, error } = useSongData(
-    "https://www.radiojar.com/api/stations/bw66d94ksg8uv/now_playing/",
-    reloadKey
+  const { songData, error, triggerRetry } = useSongData(
+    "https://www.radiojar.com/api/stations/bw66d94ksg8uv/now_playing/"
   );
   const { width, height } = useWindowDimensions();
   const { resetTrack } = usePlayback();
-
-  const reloadPage = () => {
-    setReloadKey((prevKey) => prevKey + 1);
-    console.log(reloadKey);
-  };
 
   if (error) {
     return (
@@ -60,7 +53,7 @@ export default function App() {
           <Text style={styles.errorText}>
             Error: {error ? error + "," : ""} please try again later.
           </Text>
-          <Button onPress={reloadPage} title="Reload" />
+          <Button onPress={triggerRetry} title="Reload" />
         </View>
       </SafeAreaView>
     );

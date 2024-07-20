@@ -15,6 +15,9 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.radyoklasik.online",
         "EXPO_PUBLIC_SHARED_SECRET": "09140d6978f195a34beb61303366cc9840d4e3976c35de5c61adbca6e37712a9"
+      },
+      "android": {
+        "buildType": "apk"
       }
     },
     "production": {
@@ -24,6 +27,9 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.radyoklasik.online",
         "EXPO_PUBLIC_SHARED_SECRET": "09140d6978f195a34beb61303366cc9840d4e3976c35de5c61adbca6e37712a9"
+      },
+      "android": {
+        "buildType": "apk"
       }
     }
   },

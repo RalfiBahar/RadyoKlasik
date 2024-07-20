@@ -1,13 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { SongData } from "../types";
 
-const useSongData = (
-  apiUrl: string,
-  key: number,
-  intervalTime: number = 5000
-) => {
+const useSongData = (apiUrl: string, intervalTime: number = 5000) => {
   const [songData, setSongData] = useState<SongData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [retry, setRetry] = useState<boolean>(false);
 
   const fetchSongData = async () => {
     try {
@@ -33,13 +30,17 @@ const useSongData = (
     }
   };
 
+  const triggerRetry = useCallback(() => {
+    setRetry((prev) => !prev);
+  }, []);
+
   useEffect(() => {
     fetchSongData();
     const interval = setInterval(fetchSongData, intervalTime);
     return () => clearInterval(interval);
-  }, [apiUrl, key, intervalTime]);
+  }, [apiUrl, retry, intervalTime]);
 
-  return { songData, error };
+  return { songData, error, triggerRetry };
 };
 
 export default useSongData;
