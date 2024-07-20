@@ -49,3 +49,6 @@ __pycache__/
 *.py[cod]
 *.sqlite
 *.log
+/ios
+/android
+

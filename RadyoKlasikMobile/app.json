@@ -18,7 +18,7 @@
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourcompany.mymusicapp",
+      "bundleIdentifier": "com.baharralfi.radyoklasik",
       "buildNumber": "1.0.0",
       "infoPlist": {
         "UIBackgroundModes": ["audio"],
