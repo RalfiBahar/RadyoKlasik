@@ -41,8 +41,8 @@ __pycache__/
 *.py[cod]
 *.pyc
 recording.cpython-312.pyc
-*.png
-*.jpg
+/RadyoKlasikServer/public/static/assets/thumbnails/*.png
+/RadyoKlasikServer/public/static/assets/thumbnails/*.jpg
 /RadyoKlasikServer/routes/__pycache__
 pycache/*
 __pycache__/
@@ -51,4 +51,5 @@ __pycache__/
 *.log
 /ios
 /android
-
+ios/
+android/

@@ -23,6 +23,7 @@ import useSongData from "../hooks/useSongData";
 import { Link } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { usePlayback } from "../context/PlaybackContext";
+import "expo-asset";
 
 export default function App() {
   const [reloadKey, setReloadKey] = useState<number>(0);

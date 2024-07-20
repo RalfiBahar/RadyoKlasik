@@ -21,17 +21,7 @@
       "bundleIdentifier": "com.baharralfi.radyoklasik",
       "buildNumber": "1.0.0",
       "infoPlist": {
-        "UIBackgroundModes": ["audio"],
-        "NSAppTransportSecurity": {
-          "NSAllowsArbitraryLoads": true,
-          "NSExceptionDomains": {
-            "stream.radiojar.com": {
-              "NSIncludesSubdomains": true,
-              "NSTemporaryExceptionAllowsInsecureHTTPLoads": true,
-              "NSTemporaryExceptionMinimumTLSVersion": "TLSv1.0"
-            }
-          }
-        }
+        "UIBackgroundModes": ["audio"]
       }
     },
     "android": {
@@ -39,7 +29,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
       },
-      "package": "com.yourcompany.mymusicapp",
+      "package": "com.baharralfi.radyoklasik",
       "versionCode": 1,
       "permissions": ["WAKE_LOCK"]
     },
@@ -60,7 +50,20 @@
           }
         }
       ],
-      "expo-router"
+      "expo-router",
+      [
+        "expo-asset",
+        {
+          "assets": [
+            "./assets/adaptive-icon.png",
+            "./assets/bg.png",
+            "./assets/favicon.png",
+            "./assets/icon.png",
+            "./assets/logo.png",
+            "./assets/splash.png"
+          ]
+        }
+      ]
     ]
   }
 }

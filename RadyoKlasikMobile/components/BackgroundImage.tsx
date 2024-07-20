@@ -1,15 +1,26 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Dimensions, Image, StyleSheet } from "react-native";
+import { Asset } from "expo-asset";
 
 const WIDTH = Dimensions.get("screen").width;
 const HEIGHT = Dimensions.get("screen").height;
 
 const BackgroundImage = () => {
+  const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadAsset = async () => {
+      const [image] = await Asset.loadAsync(require("../assets/bg.png"));
+      setBackgroundImage(image.localUri || image.uri);
+    };
+
+    loadAsset();
+  }, []);
+
   return (
-    <Image
-      style={styles.backgroundImage}
-      source={require("../assets/bg.png")}
-    />
+    backgroundImage && (
+      <Image style={styles.backgroundImage} source={{ uri: backgroundImage }} />
+    )
   );
 };
 
