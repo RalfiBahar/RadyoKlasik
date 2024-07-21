@@ -4,6 +4,7 @@ const dotenv = require("dotenv");
 const authRoutes = require("./routes/authRoutes");
 const recordingRoutes = require("./routes/recordingRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
 const path = require("path");
 const { sequelize } = require("./config/database");
 const Recording = require("./models/recording");
@@ -31,6 +32,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 app.use("/auth", authRoutes);
 app.use("/recording", recordingRoutes);
+app.use("/notification", notificationRoutes);
 app.use("/", dashboardRoutes);
 
 (async () => {

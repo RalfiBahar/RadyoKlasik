@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
+import { EXPO_PUBLIC_API_URL } from "@env";
 
 export interface PushNotificationState {
   pushToken?: Notifications.ExpoPushToken;
@@ -49,6 +50,26 @@ export const usePushNotifications = (): PushNotificationState => {
       token = await Notifications.getExpoPushTokenAsync({
         projectId: Constants.expoConfig?.extra?.eas.projectId,
       });
+
+      if (token) {
+        const saveTokenRoute = `${EXPO_PUBLIC_API_URL}/notification/save_notification_token`;
+        console.log(saveTokenRoute);
+        await fetch(saveTokenRoute, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ notification_token: token.data }),
+        })
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error("Failed to save notification token");
+            }
+          })
+          .catch((error) => {
+            console.error("Error saving notification token:", error);
+          });
+      }
     } else {
       alert("Must be using a physical device for Push notifications");
     }
