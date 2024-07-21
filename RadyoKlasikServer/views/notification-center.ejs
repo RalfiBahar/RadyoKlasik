@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Send Notification</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto,
+          Helvetica Neue, Ubuntu, sans-serif;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        background-color: #f0f0f0;
+      }
+      .container {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        max-width: 400px;
+        width: 100%;
+      }
+      .form-group {
+        margin-bottom: 15px;
+      }
+      .form-group label {
+        display: block;
+        margin-bottom: 5px;
+      }
+      .form-group input {
+        width: 100%;
+        padding: 8px;
+        box-sizing: border-box;
+      }
+      .buttons {
+        display: flex;
+        justify-content: space-between;
+      }
+      .buttons button {
+        padding: 10px 20px;
+        border: none;
+        color: white;
+        cursor: pointer;
+        border-radius: 4px;
+      }
+      .buttons button:disabled {
+        background-color: #cccccc;
+      }
+      .notification-count {
+        margin-top: 15px;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h2>Send Notification</h2>
+      <div class="form-group">
+        <label for="title">Title (required)</label>
+        <input type="text" id="title" required />
+      </div>
+      <div class="form-group">
+        <label for="subtitle">Subtitle</label>
+        <input type="text" id="subtitle" />
+      </div>
+      <div class="form-group">
+        <label for="body">Body (required)</label>
+        <input type="text" id="body" required />
+      </div>
+      <div class="buttons">
+        <button id="backToDashboard">Back to Dashboard</button>
+        <button id="sendNotification" disabled>Send</button>
+      </div>
+      <div class="notification-count" id="notificationCount">
+        Notifications sent: 0
+      </div>
+    </div>
+
+    <script>
+      const titleInput = document.getElementById("title");
+      const bodyInput = document.getElementById("body");
+      const sendButton = document.getElementById("sendNotification");
+      const notificationCount = document.getElementById("notificationCount");
+
+      let notificationsSent = 0;
+
+      titleInput.addEventListener("input", checkRequiredFields);
+      bodyInput.addEventListener("input", checkRequiredFields);
+
+      document
+        .getElementById("backToDashboard")
+        .addEventListener("click", () => {
+          window.location.href = "/dashboard";
+        });
+
+      sendButton.addEventListener("click", async () => {
+        const title = titleInput.value;
+        const subtitle = document.getElementById("subtitle").value;
+        const body = bodyInput.value;
+
+        try {
+          const response = await fetch("/notification/send_notification", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ title, subtitle, body }),
+          });
+
+          if (response.ok) {
+            const responseJson = await response.json();
+            notificationsSent += responseJson.num_notifications_sent;
+            notificationCount.textContent = `Notifications sent: ${notificationsSent}`;
+          } else {
+            console.log(response);
+            alert("Failed to send notifications");
+          }
+        } catch (error) {
+          alert("Error sending notifications: " + error.message);
+        }
+      });
+
+      function checkRequiredFields() {
+        if (titleInput.value && bodyInput.value) {
+          sendButton.disabled = false;
+        } else {
+          sendButton.disabled = true;
+        }
+      }
+    </script>
+  </body>
+</html>

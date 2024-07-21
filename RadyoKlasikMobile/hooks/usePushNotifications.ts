@@ -31,6 +31,7 @@ export const usePushNotifications = (): PushNotificationState => {
   const notificationListener = useRef<Notifications.Subscription>();
   const responseListener = useRef<Notifications.Subscription>();
 
+  // TASK: Use async storage to make this run only once
   async function registerPushNotifications() {
     let token;
     if (Device.isDevice) {

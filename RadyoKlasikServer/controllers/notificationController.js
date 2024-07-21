@@ -7,6 +7,8 @@ const { Expo } = require("expo-server-sdk");
 const md5 = require("md5");
 const logger = require("../logger");
 
+// TASK: Add tokenRequired middleware (also on mobile)
+
 const expo = new Expo({
   useFcmV1: true,
 });
@@ -65,24 +67,34 @@ const sendNotificationToAll = async (req, res) => {
     }
 
     let chunks = expo.chunkPushNotifications(notification_messages);
-
+    let numReceipts = 0;
     for (let chunk of chunks) {
       try {
         let receipts = await expo.sendPushNotificationsAsync(chunk);
         logger.info("Receipts", receipts);
+        numReceipts++;
       } catch (error) {
         logger.error("Error sending notification", error);
       }
     }
-
-    res.status(200).json({ message: "Notifications sent" });
+    res.status(200).json({
+      message: "Notifications sent",
+      num_notifications_sent: numReceipts,
+    });
   } catch (error) {
     logger.error("Error fetching notification tokens", error);
     res.status(500).json({ error: "Failed to send notifications" });
   }
 };
 
+const notificationCenter = (req, res) => {
+  res.render("notification-center", {
+    shared_secret_key: process.env.SHARED_SECRET_KEY,
+  });
+};
+
 module.exports = {
   saveNotificationToken,
   sendNotificationToAll,
+  notificationCenter,
 };
