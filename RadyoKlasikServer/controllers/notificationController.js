@@ -64,7 +64,7 @@ const sendNotificationToAll = async (req, res) => {
       notification_messages.push(message);
     }
 
-    let chunks = expo.chunkPushNotifications(messages);
+    let chunks = expo.chunkPushNotifications(notification_messages);
 
     for (let chunk of chunks) {
       try {

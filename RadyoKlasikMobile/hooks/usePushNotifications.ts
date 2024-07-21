@@ -52,9 +52,9 @@ export const usePushNotifications = (): PushNotificationState => {
       });
 
       if (token) {
-        const saveTokenRoute = `${EXPO_PUBLIC_API_URL}/notification/save_notification_token`;
-        console.log(saveTokenRoute);
-        await fetch(saveTokenRoute, {
+        const tokenSaveRoute = `${EXPO_PUBLIC_API_URL}/notification/save_notification_token`;
+        console.log(tokenSaveRoute);
+        await fetch(tokenSaveRoute, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
