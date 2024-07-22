@@ -1,13 +1,7 @@
-const { Router } = require("express");
-const { tokenRequired } = require("../middlewares/authMiddleware");
 const NotificationToken = require("../models/notificationToken");
-const { sequelize } = require("../config/database");
-const { Sequelize } = require("sequelize");
 const { Expo } = require("expo-server-sdk");
 const md5 = require("md5");
 const logger = require("../logger");
-
-// TASK: Add tokenRequired middleware (also on mobile)
 
 const expo = new Expo({
   useFcmV1: true,
@@ -67,19 +61,30 @@ const sendNotificationToAll = async (req, res) => {
     }
 
     let chunks = expo.chunkPushNotifications(notification_messages);
-    let numReceipts = 0;
+    let numSuccessfulMessages = 0;
+    let totalMessages = notification_messages.length;
+
     for (let chunk of chunks) {
       try {
         let receipts = await expo.sendPushNotificationsAsync(chunk);
         logger.info("Receipts", receipts);
-        numReceipts++;
+        console.log(receipts);
+        receipts.forEach((receipt) => {
+          if (receipt.status === "ok") {
+            numSuccessfulMessages++;
+          }
+        });
       } catch (error) {
         logger.error("Error sending notification", error);
       }
     }
+    let successPercentage = (numSuccessfulMessages / totalMessages) * 100;
+    logger.info(`Notifications successfully sent: ${numSuccessfulMessages}`);
+    logger.info(`Success percentage: ${successPercentage.toFixed(2)}%`);
     res.status(200).json({
       message: "Notifications sent",
-      num_notifications_sent: numReceipts,
+      num_notifications_sent: numSuccessfulMessages,
+      success_percentage: successPercentage.toFixed(2),
     });
   } catch (error) {
     logger.error("Error fetching notification tokens", error);

@@ -4,11 +4,14 @@ const {
   sendNotificationToAll,
   notificationCenter,
 } = require("../controllers/notificationController.js");
-const { loginRequired } = require("../middlewares/authMiddleware");
+const {
+  loginRequired,
+  tokenRequired,
+} = require("../middlewares/authMiddleware");
 const router = Router();
 
-router.post("/save_notification_token", saveNotificationToken);
-router.post("/send_notification", sendNotificationToAll);
+router.post("/save_notification_token", tokenRequired, saveNotificationToken);
+router.post("/send_notification", tokenRequired, sendNotificationToAll);
 router.get("/notification-center", loginRequired, notificationCenter);
 
 module.exports = router;
