@@ -10,6 +10,12 @@ body {
   height: 100vh;
   background-color: #f0f0f0;
 }
+
+:root {
+  --theme-red: #ff4e4e;
+  --theme-purple: rgb(84, 105, 212);
+}
+
 .container {
   background: white;
   padding: 20px;
@@ -37,6 +43,7 @@ body {
   padding: 10px 20px;
   border: none;
   color: white;
+  background-color: var(--theme-purple);
   cursor: pointer;
   border-radius: 4px;
 }
