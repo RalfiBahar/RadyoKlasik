@@ -31,8 +31,9 @@
       },
       "package": "com.baharralfi.radyoklasik",
       "versionCode": 1,
-      "permissions": ["WAKE_LOCK"],
-      "googleServicesFile": "./android/app/google-services.json"
+      "permissions": ["WAKE_LOCK", "RECEIVE_BOOT_COMPLETED"],
+      "googleServicesFile": "./android/app/google-services.json",
+      "useNextNotificationsApi": true
     },
     "web": {
       "favicon": "./assets/favicon.png"

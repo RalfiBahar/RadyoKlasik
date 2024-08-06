@@ -4,18 +4,20 @@ import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { EXPO_PUBLIC_API_URL } from "@env";
+import { fetchWithAuth } from "../helpers/token";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export interface PushNotificationState {
   pushToken?: Notifications.ExpoPushToken;
   notification?: Notifications.Notification;
 }
 
-let isInitialized = false;
+const INITIALIZATION_KEY = "PUSH_NOTIFICATIONS_INITIALIZED";
 
 export const usePushNotifications = (): PushNotificationState => {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
-      shouldPlaySound: false,
+      shouldPlaySound: true,
       shouldShowAlert: true,
       shouldSetBadge: false,
     }),
@@ -55,7 +57,7 @@ export const usePushNotifications = (): PushNotificationState => {
       if (token) {
         const tokenSaveRoute = `${EXPO_PUBLIC_API_URL}/notification/save_notification_token`;
         console.log(tokenSaveRoute);
-        await fetch(tokenSaveRoute, {
+        await fetchWithAuth(tokenSaveRoute, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -81,16 +83,25 @@ export const usePushNotifications = (): PushNotificationState => {
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: "#FF231F7C",
+        lockscreenVisibility:
+          Notifications.AndroidNotificationVisibility.PUBLIC,
+        showBadge: true,
       });
     }
 
     return token;
   }
+
   useEffect(() => {
-    if (!isInitialized) {
-      registerPushNotifications().then((token) => {
+    const initialize = async () => {
+      const isInitialized = await AsyncStorage.getItem(INITIALIZATION_KEY);
+
+      if (!isInitialized) {
+        const token = await registerPushNotifications();
         setPushToken(token);
-      });
+        console.log("PushToken: ", token);
+        await AsyncStorage.setItem(INITIALIZATION_KEY, "true");
+      }
 
       notificationListener.current =
         Notifications.addNotificationReceivedListener((notification) => {
@@ -101,9 +112,9 @@ export const usePushNotifications = (): PushNotificationState => {
         Notifications.addNotificationResponseReceivedListener((response) => {
           console.log(response);
         });
+    };
 
-      isInitialized = true;
-    }
+    initialize();
 
     return () => {
       if (notificationListener.current) {
@@ -118,7 +129,6 @@ export const usePushNotifications = (): PushNotificationState => {
     };
   }, []);
 
-  console.log("PushToken: ", pushToken);
   return {
     pushToken,
     notification,
