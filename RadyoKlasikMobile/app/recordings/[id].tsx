@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, Image, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, Image, StyleSheet, StatusBar } from "react-native";
 import { Link, useLocalSearchParams } from "expo-router";
 import { EXPO_PUBLIC_API_URL } from "@env";
 import AudioButton from "../../components/AudioButton";
@@ -111,7 +111,7 @@ const styles = StyleSheet.create({
   },
   backButton: {
     position: "absolute",
-    top: 40,
+    top: (StatusBar.currentHeight || 20) + 20,
     left: 20,
     flexDirection: "row",
     alignItems: "center",

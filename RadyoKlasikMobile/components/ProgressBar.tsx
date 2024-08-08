@@ -23,6 +23,7 @@ const ProgressBar: React.FC<ProgressBarProps> = () => {
         minimumTrackTintColor={theme.colors.BLUE}
         maximumTrackTintColor="#000000"
         onSlidingComplete={(value) => TrackPlayer.seekTo(value)}
+        thumbTintColor={theme.colors.BLUE}
       />
       <Text style={{ fontSize: 20, textAlign: "right" }}>
         {formatTime(progress.duration)}
@@ -34,8 +35,8 @@ const ProgressBar: React.FC<ProgressBarProps> = () => {
 const styles = StyleSheet.create({
   progressBarContainer: {
     display: "flex",
-    height: 30,
-    width: "80%",
+    height: 60,
+    width: "90%",
     borderRadius: 5,
     marginTop: 10,
   },

@@ -30,7 +30,9 @@ export async function getToken(): Promise<string | null> {
 
 export async function fetchWithAuth(
   url: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  retries: number = 10,
+  delay: number = 1000
 ): Promise<Response> {
   options.headers = {
     ...options.headers,
@@ -55,6 +57,12 @@ export async function fetchWithAuth(
     } else {
       console.log("Unauthorized");
     }
+  }
+
+  if (!response.ok && retries > 0 && response.status != 401) {
+    console.log(`Retrying request... ${retries} attempts left`);
+    await new Promise((res) => setTimeout(res, delay));
+    return fetchWithAuth(url, options, retries - 1, delay * 2);
   }
 
   return response;

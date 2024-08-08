@@ -53,7 +53,6 @@ export default function App() {
           <Text style={styles.errorText}>
             Error: {error ? error + "," : ""} please try again later.
           </Text>
-          <Button onPress={triggerRetry} title="Reload" />
         </View>
       </SafeAreaView>
     );

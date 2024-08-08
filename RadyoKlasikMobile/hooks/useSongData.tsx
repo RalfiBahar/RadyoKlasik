@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { SongData } from "../types";
+import { fetchWithAuth } from "../helpers/token";
 
 const useSongData = (apiUrl: string, intervalTime: number = 5000) => {
   const [songData, setSongData] = useState<SongData | null>(null);
@@ -8,7 +9,7 @@ const useSongData = (apiUrl: string, intervalTime: number = 5000) => {
 
   const fetchSongData = async () => {
     try {
-      const response = await fetch(apiUrl);
+      const response = await fetchWithAuth(apiUrl);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }

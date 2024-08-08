@@ -2,6 +2,7 @@ import React from "react";
 import { StyleSheet, View, Text, Image } from "react-native";
 import { EXPO_PUBLIC_API_URL } from "@env";
 import { formatTime } from "../helpers/formatTime";
+import { Link } from "expo-router";
 
 interface RecordingItemProps {
   recording: {
@@ -22,26 +23,30 @@ interface RecordingItemProps {
 const RecordingItem: React.FC<RecordingItemProps> = ({ recording }) => {
   const ARTWORK_URI = `${EXPO_PUBLIC_API_URL}/${recording.artwork}`;
   return (
-    <View style={styles.container}>
-      <Image source={{ uri: ARTWORK_URI }} style={styles.artwork} />
-
-      <View style={styles.details}>
-        <Text style={styles.title}>{recording.title}</Text>
-        <Text style={styles.artist}>{recording.artist}</Text>
-        <Text style={styles.date}>{formatTime(recording.duration)}</Text>
+    <Link href={`/recordings/${recording.id}`} style={styles.link}>
+      <View style={styles.container}>
+        <Image source={{ uri: ARTWORK_URI }} style={styles.artwork} />
+        <View style={styles.details}>
+          <Text style={styles.title}>{recording.title}</Text>
+          <Text style={styles.artist}>{recording.artist}</Text>
+          <Text style={styles.date}>{formatTime(recording.duration)}</Text>
+        </View>
       </View>
-    </View>
+    </Link>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    width: "100%",
+    display: "flex",
     flexDirection: "row",
-    marginBottom: 10,
-    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
     padding: 10,
+  },
+  link: {
+    margin: 10,
+    backgroundColor: "#fff",
     borderRadius: 5,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -56,7 +61,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   details: {
-    flex: 1,
+    display: "flex",
     justifyContent: "center",
   },
   title: {

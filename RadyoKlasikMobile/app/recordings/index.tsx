@@ -7,15 +7,17 @@ import {
   ActivityIndicator,
   SafeAreaView,
   Text,
+  StatusBar,
 } from "react-native";
 import { Link } from "expo-router";
 import RecordingItem from "../../components/RecordingItem";
 import { EXPO_PUBLIC_API_URL } from "@env";
 import { useRecordings } from "../../context/RecordingsContext";
 import { usePlayback } from "../../context/PlaybackContext";
-import { BackgroundImage } from "../../components";
+import { BackgroundImage, BackButton } from "../../components";
 import { Feather } from "@expo/vector-icons";
 import { fetchWithAuth } from "../../helpers/token";
+import theme from "../../styles/theme";
 
 const RecordingList = () => {
   const { recordings, setRecordings } = useRecordings();
@@ -46,21 +48,14 @@ const RecordingList = () => {
   }
 
   return (
-    <SafeAreaView>
+    <SafeAreaView style={theme.globalStyles.AndroidSafeArea}>
       <BackgroundImage />
-      <Link style={styles.backButton} href="/" onPress={() => resetTrack}>
-        <Feather name="arrow-left" size={24} color="black" />
-        <Text style={styles.backButtonText}>Live</Text>
-      </Link>
+      <BackButton href="/" text="Live" onPress={() => resetTrack} />
       <Text style={styles.title}>Past Programs</Text>
       <FlatList
         data={recordings}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <Link href={`/recordings/${item.id}`} style={styles.link}>
-            <RecordingItem recording={item} />
-          </Link>
-        )}
+        renderItem={({ item }) => <RecordingItem recording={item} />}
         contentContainerStyle={styles.list}
       />
     </SafeAreaView>
@@ -76,20 +71,6 @@ const styles = StyleSheet.create({
   list: {
     padding: 10,
     display: "flex",
-  },
-  link: {
-    flex: 1,
-  },
-  backButton: {
-    position: "absolute",
-    top: 40,
-    left: 20,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  backButtonText: {
-    fontSize: 18,
-    marginLeft: 5,
   },
   title: {
     fontSize: 24,

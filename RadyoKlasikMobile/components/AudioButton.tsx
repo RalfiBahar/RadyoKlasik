@@ -122,8 +122,6 @@ const AudioButton = ({ audioUrl, songData, isRecording }: AudioButtonProps) => {
     }
   };
 
-  const renderProgressBar = () => {};
-
   const handlePlaybackEnd = () => {
     setIsPlaying(false);
 
