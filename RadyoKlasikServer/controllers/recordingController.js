@@ -217,11 +217,17 @@ router.get("/recordings/:filename", tokenRequired, async (req, res) => {
 // Get recordings list
 router.get("/recordings", tokenRequired, async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit, 10) || 10;
-    const recordings = await Recording.findAll({
+    const limit = req.query.limit ? parseInt(req.query.limit, 10) : undefined;
+
+    const findOptions = {
       order: [["date", "DESC"]],
-      limit,
-    });
+    };
+    if (limit !== undefined) {
+      findOptions.limit = limit;
+    }
+
+    const recordings = await Recording.findAll(findOptions);
+
     const recordingsList = recordings.map((recording) => ({
       id: recording.id,
       filename: recording.filename,
