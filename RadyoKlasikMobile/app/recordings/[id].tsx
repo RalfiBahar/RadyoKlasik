@@ -7,6 +7,7 @@ import { useRecordings } from "../../context/RecordingsContext";
 import { usePlayback } from "../../context/PlaybackContext";
 import { BackgroundImage } from "../../components";
 import { Feather } from "@expo/vector-icons";
+import { useBackButtonHandler } from "../../hooks/useBackButtonHandler";
 import theme from "../../styles/theme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -15,6 +16,7 @@ const Recording = () => {
   const { recordings } = useRecordings();
   const { resetTrack } = usePlayback();
   const [token, setToken] = useState<string | null>(null);
+  useBackButtonHandler();
 
   const recording = recordings.find((r) => r.id === id);
 
