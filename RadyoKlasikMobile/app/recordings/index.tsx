@@ -25,7 +25,7 @@ const RecordingList = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const apiRoute = `${EXPO_PUBLIC_API_URL}/recording/recordings?limit=8`;
+    const apiRoute = `${EXPO_PUBLIC_API_URL}/recording/recordings?limit=5`;
     console.log("route", apiRoute);
     fetchWithAuth(apiRoute)
       .then((response) => response.json())

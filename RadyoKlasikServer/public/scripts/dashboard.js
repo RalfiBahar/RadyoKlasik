@@ -65,7 +65,15 @@ async function fetchWithAuth(url, options = {}) {
 }
 
 function startRecording() {
-  fetchWithAuth("recording/start", { method: "POST" }).then((response) => {
+  const body = selectedArtwork ? `selected_artwork=${selectedArtwork}` : "";
+
+  fetchWithAuth("recording/start", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: body,
+  }).then((response) => {
     if (response.ok) {
       intervalId = setInterval(updateRecordingTime, 1000);
     }
@@ -73,13 +81,7 @@ function startRecording() {
 }
 
 function stopRecording() {
-  fetchWithAuth("recording/stop", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: selectedArtwork ? `existing-artworks=${selectedArtwork}` : "",
-  }).then((response) => {
+  fetchWithAuth("recording/stop", { method: "POST" }).then((response) => {
     if (response.ok) {
       clearInterval(intervalId);
       document.getElementById("recording-time").innerText = "Stopped.";
