@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
+import { router } from "expo-router";
 import { EXPO_PUBLIC_API_URL } from "@env";
 import { fetchWithAuth } from "../helpers/token";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -110,9 +111,7 @@ export const usePushNotifications = (): PushNotificationState => {
 
       responseListener.current =
         Notifications.addNotificationResponseReceivedListener((response) => {
-          console.log(response);
-          const homeUrl = "/";
-          window.location.href = homeUrl;
+          router.replace("/");
         });
     };
 
