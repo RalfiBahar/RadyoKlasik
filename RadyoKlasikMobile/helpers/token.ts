@@ -70,7 +70,7 @@ export async function fetchWithAuth(
 
 export async function initializeToken(): Promise<void> {
   token = await AsyncStorage.getItem("token");
-  console.log("token", token);
+  //console.log("token", token);
 
   if (!token) {
     token = await getToken();

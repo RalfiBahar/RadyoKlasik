@@ -30,6 +30,8 @@ interface PlaybackContextProps {
     isRecording: boolean
   ) => Promise<void>;
   isLoading: boolean;
+  currentTrack: SongData | null;
+  setCurrentTrack: (track: SongData | null) => void;
 }
 
 const PlaybackContext = createContext<PlaybackContextProps | undefined>(
@@ -53,6 +55,7 @@ export const PlaybackProvider = ({ children }: PlaybackProviderProps) => {
   const [isFinished, setIsFinished] = useState<boolean>(false);
   const [isPlayerSetup, setIsPlayerSetup] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [currentTrack, setCurrentTrack] = useState<SongData | null>(null);
   const playbackState = usePlaybackState();
 
   const setupPlayer = async () => {
@@ -78,6 +81,7 @@ export const PlaybackProvider = ({ children }: PlaybackProviderProps) => {
       await TrackPlayer.reset();
       setIsPlaying(false);
       setIsFinished(true);
+      setCurrentTrack(null);
     } catch (error) {
       console.log(error);
     }
@@ -139,6 +143,7 @@ export const PlaybackProvider = ({ children }: PlaybackProviderProps) => {
         });
         await TrackPlayer.play();
         setIsPlaying(true);
+        setCurrentTrack(songData);
       }
     } catch (error) {
       console.error("Error playing audio:", error);
@@ -153,6 +158,7 @@ export const PlaybackProvider = ({ children }: PlaybackProviderProps) => {
     TrackPlayer.addEventListener(Event.PlaybackQueueEnded, () => {
       setIsPlaying(false);
       setIsFinished(true);
+      setCurrentTrack(null);
     });
 
     TrackPlayer.addEventListener(
@@ -161,6 +167,7 @@ export const PlaybackProvider = ({ children }: PlaybackProviderProps) => {
         if (nextTrack === null) {
           setIsPlaying(false);
           setIsFinished(true);
+          setCurrentTrack(null);
         }
       }
     );
@@ -192,6 +199,8 @@ export const PlaybackProvider = ({ children }: PlaybackProviderProps) => {
         setupPlayer,
         playAudio,
         isLoading,
+        currentTrack,
+        setCurrentTrack,
       }}
     >
       {children}
