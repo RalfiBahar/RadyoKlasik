@@ -99,7 +99,6 @@ export const PlaybackProvider = ({ children }: PlaybackProviderProps) => {
       const trackId = songData.id;
 
       let redirectedUrl = `${EXPO_PUBLIC_API_URL}/${audioUrl}`;
-      console.log("REEEED", redirectedUrl);
       if (!isRecording) {
         redirectedUrl = await getRedirectedUrl(audioUrl);
       }

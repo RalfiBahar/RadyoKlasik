@@ -26,6 +26,28 @@ const saveNotificationToken = async (req, res) => {
   res.status(200).json({ message: "Notification token saved" });
 };
 
+const deleteAllNotificationTokens = async (req, res) => {
+  const { internal_secret } = req.headers;
+
+  if (internal_secret !== process.env.INTERNAL_SECRET) {
+    logger.warn("Unauthorized attempt to delete notification tokens");
+    res.status(403).json({ error: "Forbidden: Invalid or missing secret key" });
+    return;
+  }
+
+  try {
+    const deletedCount = await NotificationToken.destroy({ where: {} });
+    logger.info(`Deleted ${deletedCount} notification tokens`);
+    res.status(200).json({
+      message: "All notification tokens deleted",
+      deletedCount,
+    });
+  } catch (error) {
+    logger.error("Error deleting notification tokens", error);
+    res.status(500).json({ error: "Failed to delete notification tokens" });
+  }
+};
+
 const sendNotificationToAll = async (req, res) => {
   const { title, subtitle, body } = req.body;
 
@@ -100,6 +122,7 @@ const notificationCenter = (req, res) => {
 
 module.exports = {
   saveNotificationToken,
+  deleteAllNotificationTokens,
   sendNotificationToAll,
   notificationCenter,
 };

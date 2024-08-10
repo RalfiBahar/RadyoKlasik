@@ -49,7 +49,7 @@ const Recording = () => {
   };
 
   const streamWithToken = `${recording.stream}?token=${token}`;
-  console.log(streamWithToken);
+  //console.log(streamWithToken);
   return (
     <View style={styles.container}>
       <BackgroundImage />
