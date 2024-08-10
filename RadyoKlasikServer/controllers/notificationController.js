@@ -27,7 +27,7 @@ const saveNotificationToken = async (req, res) => {
 };
 
 const deleteAllNotificationTokens = async (req, res) => {
-  const { internal_secret } = req.headers;
+  const { internal_secret } = req.body;
 
   if (internal_secret !== process.env.INTERNAL_SECRET) {
     logger.warn("Unauthorized attempt to delete notification tokens");

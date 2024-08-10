@@ -17,6 +17,7 @@ vexo(EXPO_PUBLIC_VEXO_KEY);
 TrackPlayer.registerPlaybackService(() => require("../service"));
 
 const Layout = () => {
+  const { pushToken, notification } = usePushNotifications();
   const isConnected = useNetworkStatus();
 
   useEffect(() => {
@@ -45,7 +46,6 @@ const Layout = () => {
 };
 
 const Handlers = () => {
-  const { pushToken, notification } = usePushNotifications();
   const { currentTrack, resetTrack } = usePlayback();
 
   useEffect(() => {
