@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import LogoImage from "./LogoImage";
 import BackgroundImage from "./BackgroundImage";
+import theme from "../styles/theme";
 
 interface LoadingScreenProps {}
 
@@ -15,7 +16,7 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({}) => {
     <SafeAreaView style={styles.container}>
       <BackgroundImage />
       <LogoImage />
-      <ActivityIndicator size="large" color="#0000ff" />
+      <ActivityIndicator size="large" color={theme.colors.BLUE} />
       <Text style={styles.loadingText}>Loading...</Text>
     </SafeAreaView>
   );
