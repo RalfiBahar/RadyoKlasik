@@ -30,7 +30,7 @@ const RecordingList = () => {
   if (!recordingsLoaded) {
     return (
       <View style={styles.loader}>
-        <ActivityIndicator size="large" color="#0000ff" />
+        <ActivityIndicator size="large" color={theme.colors.BLUE} />
       </View>
     );
   }
