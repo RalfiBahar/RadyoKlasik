@@ -23,6 +23,7 @@ import useSongData from "../hooks/useSongData";
 import { Link } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { usePlayback } from "../context/PlaybackContext";
+import { useRecordings } from "../context/RecordingsContext";
 import "expo-asset";
 
 export default function App() {
@@ -31,6 +32,11 @@ export default function App() {
   );
   const { width, height } = useWindowDimensions();
   const { resetTrack } = usePlayback();
+  const { fetchRecordings } = useRecordings();
+
+  useEffect(() => {
+    fetchRecordings();
+  }, []);
 
   if (error) {
     return (

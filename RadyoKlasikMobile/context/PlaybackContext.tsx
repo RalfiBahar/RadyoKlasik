@@ -182,6 +182,7 @@ export const PlaybackProvider = ({ children }: PlaybackProviderProps) => {
     );
     return () => {
       listener.remove();
+      resetTrack();
     };
   }, []);
 

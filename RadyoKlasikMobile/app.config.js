@@ -26,7 +26,7 @@ export default {
     },
     android: {
       adaptiveIcon: {
-        foregroundImage: "./assets/adaptive_icon.png",
+        foregroundImage: "./assets/icon.png",
         backgroundColor: "#FFFFFF",
       },
       package: "com.baharralfi.radyoklasik",

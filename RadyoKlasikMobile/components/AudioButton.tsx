@@ -23,9 +23,7 @@ const AudioButton = ({ audioUrl, songData, isRecording }: AudioButtonProps) => {
   const { isPlaying, playAudio, isPlayerSetup, isLoading } = usePlayback();
 
   const handlePress = () => {
-    if (isPlayerSetup) {
-      playAudio(audioUrl, songData, isRecording);
-    }
+    playAudio(audioUrl, songData, isRecording);
   };
 
   return (

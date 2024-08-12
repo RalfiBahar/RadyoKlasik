@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { View } from "react-native";
 import { Slot } from "expo-router";
 import { RecordingsProvider } from "../context/RecordingsContext";
@@ -12,6 +12,7 @@ import { OfflinePlaceholder } from "../components";
 import * as Linking from "expo-linking";
 import { router } from "expo-router";
 import { vexo } from "vexo-analytics";
+import { LoadingScreen } from "../components";
 vexo(EXPO_PUBLIC_VEXO_KEY);
 
 TrackPlayer.registerPlaybackService(() => require("../service"));
@@ -19,15 +20,22 @@ TrackPlayer.registerPlaybackService(() => require("../service"));
 const Layout = () => {
   const { pushToken, notification } = usePushNotifications();
   const isConnected = useNetworkStatus();
+  const [tokenInitialized, setTokenInitialized] = useState(false);
 
   useEffect(() => {
     const init = async () => {
       await initializeToken();
+      setTokenInitialized(true);
     };
+
     console.log("running");
 
     init();
   }, []);
+
+  if (!tokenInitialized) {
+    return <LoadingScreen />;
+  }
 
   if (!isConnected) {
     return <OfflinePlaceholder />;

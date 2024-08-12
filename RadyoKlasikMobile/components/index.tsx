@@ -9,3 +9,4 @@ export { default as RecordingItem } from "./RecordingItem";
 export { default as ProgressBar } from "./ProgressBar";
 export { default as OfflinePlaceholder } from "./OfflinePlaceholder";
 export { default as BackButton } from "./BackButton";
+export { default as LoadingScreen } from "./LoadingScreen";

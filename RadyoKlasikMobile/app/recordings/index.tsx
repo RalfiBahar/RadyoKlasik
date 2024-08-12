@@ -20,26 +20,14 @@ import { fetchWithAuth } from "../../helpers/token";
 import theme from "../../styles/theme";
 
 const RecordingList = () => {
-  const { recordings, setRecordings } = useRecordings();
+  const { recordingsLoaded, recordings, fetchRecordings } = useRecordings();
   const { resetTrack } = usePlayback();
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const apiRoute = `${EXPO_PUBLIC_API_URL}/recording/recordings?limit=5`;
-    //console.log("route", apiRoute);
-    fetchWithAuth(apiRoute)
-      .then((response) => response.json())
-      .then((data) => {
-        setRecordings(data.recordings);
-        setLoading(false);
-      })
-      .catch((error) => {
-        console.error(error);
-        setLoading(false);
-      });
+    fetchRecordings();
   }, []);
 
-  if (loading) {
+  if (!recordingsLoaded) {
     return (
       <View style={styles.loader}>
         <ActivityIndicator size="large" color="#0000ff" />
