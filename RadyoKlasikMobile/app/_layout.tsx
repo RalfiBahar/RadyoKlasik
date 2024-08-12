@@ -8,7 +8,7 @@ import { initializeToken } from "../helpers/token";
 import { EXPO_PUBLIC_VEXO_KEY } from "@env";
 import { usePushNotifications } from "../hooks/usePushNotifications";
 import { useNetworkStatus } from "../hooks/useNetworkStatus";
-import { OfflinePlaceholder } from "../components";
+import { OfflinePlaceholder, BackgroundImage } from "../components";
 import * as Linking from "expo-linking";
 import { router } from "expo-router";
 import { vexo } from "vexo-analytics";
@@ -46,6 +46,7 @@ const Layout = () => {
       <PlaybackProvider>
         <View style={{ flex: 1 }}>
           <Handlers />
+          <BackgroundImage />
           <Slot />
         </View>
       </PlaybackProvider>

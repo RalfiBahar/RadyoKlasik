@@ -76,7 +76,6 @@ export default function App() {
 
   return (
     <View style={styles.container}>
-      <BackgroundImage />
       <Gradient />
       <LogoImage />
       <AlbumImage imgAddress={songData.thumb} />

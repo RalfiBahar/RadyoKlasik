@@ -53,7 +53,6 @@ const Recording = () => {
   //console.log(streamWithToken);
   return (
     <View style={styles.container}>
-      <BackgroundImage />
       <Link style={styles.backButton} href="/recordings" onPress={resetTrack}>
         <Feather name="arrow-left" size={24} color="black" />
         <Text style={styles.backButtonText}>Back</Text>

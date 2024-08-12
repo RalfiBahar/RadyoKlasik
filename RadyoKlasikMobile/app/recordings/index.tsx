@@ -37,7 +37,6 @@ const RecordingList = () => {
 
   return (
     <SafeAreaView style={theme.globalStyles.AndroidSafeArea}>
-      <BackgroundImage />
       <BackButton href="/" text="Live" onPress={() => resetTrack} />
       <Text style={styles.title}>Past Programs</Text>
       <FlatList
