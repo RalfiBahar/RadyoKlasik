@@ -27,7 +27,7 @@ const RecordingList = () => {
     fetchRecordings();
   }, []);
 
-  if (!recordingsLoaded) {
+  if (!recordingsLoaded && recordings.length === 0) {
     return (
       <View style={styles.loader}>
         <ActivityIndicator size="large" color={theme.colors.BLUE} />

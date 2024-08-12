@@ -23,7 +23,7 @@ const BackButton: React.FC<BackButtonProps> = ({ href, text, onPress }) => {
 const styles = StyleSheet.create({
   backButton: {
     position: "absolute",
-    top: (StatusBar.currentHeight || 20) + 20,
+    top: (StatusBar.currentHeight || 20) + 30,
     left: 20,
     flexDirection: "row",
     alignItems: "center",

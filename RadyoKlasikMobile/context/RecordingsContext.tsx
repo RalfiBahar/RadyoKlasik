@@ -22,17 +22,18 @@ export const RecordingsProvider = ({ children }: { children: ReactNode }) => {
   const fetchRecordings = async () => {
     console.log("Fetching recordings...");
     try {
-      setRecordingsLoaded(false);
       const apiRoute = `${EXPO_PUBLIC_API_URL}/recording/recordings?limit=5`;
       const response = await fetchWithAuth(apiRoute);
       const data = await response.json();
 
-      if (!areRecordingsIdentical(recordings, data.recordings)) {
-        console.log("different recordings");
-        setRecordings(data.recordings);
-      }
+      const areDifferent = !areRecordingsIdentical(recordings, data.recordings);
 
-      setRecordingsLoaded(true);
+      if (areDifferent) {
+        console.log("Different recordings detected");
+        setRecordingsLoaded(false);
+        setRecordings(data.recordings);
+        setRecordingsLoaded(true);
+      }
     } catch (error) {
       console.error("Failed to fetch recordings:", error);
       setRecordingsLoaded(false);
