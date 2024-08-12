@@ -1,5 +1,6 @@
 import React from "react";
-import { Image, StyleSheet, View, Dimensions } from "react-native";
+import { StyleSheet, View, Dimensions } from "react-native";
+import { Image } from "expo-image";
 
 const HEIGHT = Dimensions.get("screen").height;
 
@@ -10,7 +11,11 @@ interface AlbumImageProps {
 const AlbumImage: React.FC<AlbumImageProps> = ({ imgAddress }) => {
   return (
     <View style={styles.imageContainer}>
-      <Image style={styles.image} source={{ uri: imgAddress }} />
+      <Image
+        style={styles.image}
+        source={{ uri: imgAddress }}
+        contentFit="contain"
+      />
     </View>
   );
 };
@@ -20,7 +25,6 @@ const styles = StyleSheet.create({
   image: {
     width: 200,
     height: 200,
-    resizeMode: "contain",
     borderRadius: 10,
   },
 });

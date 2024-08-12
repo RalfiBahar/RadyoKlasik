@@ -1,5 +1,6 @@
 import React from "react";
-import { StyleSheet, View, Text, Image } from "react-native";
+import { StyleSheet, View, Text } from "react-native";
+import { Image } from "expo-image";
 import { EXPO_PUBLIC_API_URL } from "@env";
 import { formatTime } from "../helpers/formatTime";
 import { Link } from "expo-router";
@@ -21,11 +22,17 @@ interface RecordingItemProps {
 }
 
 const RecordingItem: React.FC<RecordingItemProps> = ({ recording }) => {
+  const blurhash = "UbOC4{~VIBNG?uj[WBoerYMyt6azOqo0WBWV";
   const ARTWORK_URI = `${EXPO_PUBLIC_API_URL}/${recording.artwork}`;
   return (
     <Link href={`/recordings/${recording.id}`} style={styles.link}>
       <View style={styles.container}>
-        <Image source={{ uri: ARTWORK_URI }} style={styles.artwork} />
+        <Image
+          source={{ uri: ARTWORK_URI }}
+          style={styles.artwork}
+          placeholder={{ blurhash }}
+          transition={300}
+        />
         <View style={styles.details}>
           <Text style={styles.title}>{recording.title}</Text>
           <Text style={styles.artist}>{recording.artist}</Text>

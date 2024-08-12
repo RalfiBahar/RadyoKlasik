@@ -27,7 +27,7 @@ export default {
     android: {
       adaptiveIcon: {
         foregroundImage: "./assets/icon.png",
-        backgroundColor: "#FFFFFF",
+        backgroundColor: "#C5CFFB",
       },
       package: "com.baharralfi.radyoklasik",
       versionCode: 1,
@@ -44,6 +44,7 @@ export default {
     },
     plugins: [
       "expo-router",
+      "expo-build-properties",
       [
         "expo-asset",
         {

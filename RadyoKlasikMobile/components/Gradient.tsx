@@ -1,6 +1,5 @@
 import React from "react";
-import { StyleSheet, Dimensions } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
+import { StyleSheet, Dimensions, View } from "react-native";
 
 const WIDTH = Dimensions.get("screen").width;
 const HEIGHT = Dimensions.get("screen").height;
@@ -8,7 +7,11 @@ const HEIGHT = Dimensions.get("screen").height;
 const Gradient: React.FC = () => {
   return (
     <>
-      <LinearGradient colors={["white", "white"]} style={styles.gradient} />
+      {/*
+          <LinearGradient colors={["white", "white"]} style={styles.gradient} />
+
+      */}
+      <View style={styles.gradient}></View>
     </>
   );
 };
@@ -21,6 +24,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderTopLeftRadius: 40,
     borderTopRightRadius: 40,
+    backgroundColor: "white",
   },
 });
 

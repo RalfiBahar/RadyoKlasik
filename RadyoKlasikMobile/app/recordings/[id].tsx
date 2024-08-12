@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, Image, StyleSheet, StatusBar } from "react-native";
+import { View, Text, StyleSheet, StatusBar } from "react-native";
+import { Image } from "expo-image";
 import { Link, useLocalSearchParams } from "expo-router";
 import { EXPO_PUBLIC_API_URL } from "@env";
 import AudioButton from "../../components/AudioButton";
