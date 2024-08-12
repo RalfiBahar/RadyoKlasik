@@ -124,6 +124,7 @@ export const PlaybackProvider = ({ children }: PlaybackProviderProps) => {
               artwork: songData.thumb,
               isLiveStream: !isRecording,
             });
+            setIsFinished(false);
           }
           await TrackPlayer.play();
           setIsPlaying(true);
@@ -140,6 +141,7 @@ export const PlaybackProvider = ({ children }: PlaybackProviderProps) => {
           artwork: songData.thumb,
           isLiveStream: !isRecording,
         });
+        setIsFinished(false);
         await TrackPlayer.play();
         setIsPlaying(true);
         setCurrentTrack(songData);
@@ -147,7 +149,7 @@ export const PlaybackProvider = ({ children }: PlaybackProviderProps) => {
     } catch (error) {
       console.error("Error playing audio:", error);
     } finally {
-      setIsLoading(false);
+      //setIsLoading(false);
     }
   };
 
@@ -185,6 +187,25 @@ export const PlaybackProvider = ({ children }: PlaybackProviderProps) => {
       resetTrack();
     };
   }, []);
+
+  useEffect(() => {
+    if (
+      playbackState.state === State.Buffering ||
+      playbackState.state === State.Loading
+    ) {
+      setIsLoading(true);
+    } else {
+      setIsLoading(false);
+    }
+
+    if (
+      playbackState.state === State.Stopped ||
+      playbackState.state == State.Paused
+    ) {
+      setIsLoading(false);
+      setIsPlaying(false);
+    }
+  }, [playbackState]);
 
   return (
     <PlaybackContext.Provider

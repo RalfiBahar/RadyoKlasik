@@ -6,7 +6,7 @@ import { EXPO_PUBLIC_API_URL } from "@env";
 import AudioButton from "../../components/AudioButton";
 import { useRecordings } from "../../context/RecordingsContext";
 import { usePlayback } from "../../context/PlaybackContext";
-import { BackgroundImage } from "../../components";
+import { BackgroundImage, LoadingScreen } from "../../components";
 import { Feather } from "@expo/vector-icons";
 import { useBackButtonHandler } from "../../hooks/useBackButtonHandler";
 import theme from "../../styles/theme";
@@ -34,11 +34,7 @@ const Recording = () => {
   }, []);
 
   if (!recording || !token) {
-    return (
-      <View style={styles.loader}>
-        <Text>Loading...</Text>
-      </View>
-    );
+    return <LoadingScreen />;
   }
 
   const songData = {

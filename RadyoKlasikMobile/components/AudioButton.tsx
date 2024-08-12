@@ -11,6 +11,7 @@ import { usePlayback } from "../context/PlaybackContext";
 import { SongData } from "../types";
 import ProgressBar from "./ProgressBar";
 import theme from "../styles/theme";
+import { formatTime } from "../helpers/formatTime";
 
 interface AudioButtonProps {
   audioUrl: string;
@@ -39,7 +40,9 @@ const AudioButton = ({ audioUrl, songData, isRecording }: AudioButtonProps) => {
           />
         )}
       </TouchableOpacity>
-      {isRecording && <ProgressBar />}
+      {isRecording && (
+        <ProgressBar initialDuration={formatTime(songData.duration)} />
+      )}
     </View>
   );
 };

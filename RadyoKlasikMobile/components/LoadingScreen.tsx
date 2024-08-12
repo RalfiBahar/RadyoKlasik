@@ -1,5 +1,10 @@
 import React from "react";
-import { SafeAreaView, Text, StyleSheet } from "react-native";
+import {
+  SafeAreaView,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+} from "react-native";
 import LogoImage from "./LogoImage";
 import BackgroundImage from "./BackgroundImage";
 
@@ -10,6 +15,7 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({}) => {
     <SafeAreaView style={styles.container}>
       <BackgroundImage />
       <LogoImage />
+      <ActivityIndicator size="large" color="#0000ff" />
       <Text style={styles.loadingText}>Loading...</Text>
     </SafeAreaView>
   );

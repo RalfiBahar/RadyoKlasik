@@ -18,6 +18,7 @@ import {
   TextComponent,
   Gradient,
   LogoImage,
+  LoadingScreen,
 } from "../components";
 import useSongData from "../hooks/useSongData";
 import { Link } from "expo-router";
@@ -65,13 +66,7 @@ export default function App() {
   }
 
   if (!songData) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <BackgroundImage />
-        <LogoImage />
-        <Text style={styles.loadingText}>Loading...</Text>
-      </SafeAreaView>
-    );
+    return <LoadingScreen />;
   }
 
   return (

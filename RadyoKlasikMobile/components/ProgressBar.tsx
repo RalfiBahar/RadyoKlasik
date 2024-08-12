@@ -5,9 +5,11 @@ import { formatTime } from "../helpers/formatTime";
 import TrackPlayer, { useProgress } from "react-native-track-player";
 import theme from "../styles/theme";
 
-interface ProgressBarProps {}
+interface ProgressBarProps {
+  initialDuration: string;
+}
 
-const ProgressBar: React.FC<ProgressBarProps> = () => {
+const ProgressBar: React.FC<ProgressBarProps> = ({ initialDuration }) => {
   let progress = useProgress();
 
   return (
@@ -26,7 +28,7 @@ const ProgressBar: React.FC<ProgressBarProps> = () => {
         thumbTintColor={theme.colors.BLUE}
       />
       <Text style={{ fontSize: 20, textAlign: "right" }}>
-        {formatTime(progress.duration)}
+        {progress.duration ? formatTime(progress.duration) : initialDuration}
       </Text>
     </View>
   );
