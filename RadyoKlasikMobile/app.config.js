@@ -18,7 +18,7 @@ export default {
     assetBundlePatterns: ["**/*"],
     ios: {
       supportsTablet: true,
-      bundleIdentifier: "com.baharralfi.radyoklasik",
+      bundleIdentifier: "com.baharralfi.radyoklasikonline",
       buildNumber: "1.0.0",
       infoPlist: {
         UIBackgroundModes: ["audio"],
@@ -29,7 +29,7 @@ export default {
         foregroundImage: "./assets/adaptive_icon.png",
         backgroundColor: "#C5CFFB",
       },
-      package: "com.baharralfi.radyoklasik",
+      package: "com.baharralfi.radyoklasikonline",
       versionCode: 1,
       permissions: ["WAKE_LOCK", "RECEIVE_BOOT_COMPLETED"],
       googleServicesFile: process.env.GOOGLE_SERVICES_JSON,

@@ -9,7 +9,7 @@ interface TokenResponse {
 }
 
 export async function getToken(): Promise<string | null> {
-  console.log(`${EXPO_PUBLIC_API_URL}/auth/generate_token`);
+  // console.log(`${EXPO_PUBLIC_API_URL}/auth/generate_token`);
   const response = await fetch(`${EXPO_PUBLIC_API_URL}/auth/generate_token`, {
     method: "POST",
     headers: {
@@ -42,7 +42,7 @@ export async function fetchWithAuth(
   if (response.status === 401) {
     const data: TokenResponse = await response.json();
     if (data.error === "token_expired") {
-      console.log("Token expired, refreshing...");
+      // console.log("Token expired, refreshing...");
       token = await getToken();
       if (token) {
         await AsyncStorage.setItem("token", token);
@@ -52,15 +52,15 @@ export async function fetchWithAuth(
         };
         response = await fetch(url, options); // Retry the request with new token
       } else {
-        console.log("Failed to refresh token");
+        // console.log("Failed to refresh token");
       }
     } else {
-      console.log("Unauthorized");
+      // console.log("Unauthorized");
     }
   }
 
   if (!response.ok && retries > 0 && response.status != 401) {
-    console.log(`Retrying request... ${retries} attempts left`);
+    // console.log(`Retrying request... ${retries} attempts left`);
     await new Promise((res) => setTimeout(res, delay));
     return fetchWithAuth(url, options, retries - 1, delay * 2);
   }
@@ -78,7 +78,7 @@ export async function initializeToken(): Promise<void> {
     if (token) {
       await AsyncStorage.setItem("token", token);
     } else {
-      console.log("Couldn't fetch token");
+      // console.log("Couldn't fetch token");
       return;
     }
   }

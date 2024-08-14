@@ -21,14 +21,14 @@ export const getRedirectedUrl = async (url: string) => {
 
     const data = await response.json();
     if (data.url) {
-      console.log("Redirected URL:", data.url);
+      // console.log("Redirected URL:", data.url);
       return data.url;
     } else {
-      console.error("Error:", data.error);
+      // console.error("Error:", data.error);
       return null;
     }
   } catch (error) {
-    console.error("Error fetching URL:", error);
+    // console.error("Error fetching URL:", error);
     return null;
   }
 };

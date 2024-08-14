@@ -20,7 +20,7 @@ export const RecordingsProvider = ({ children }: { children: ReactNode }) => {
   const [recordingsLoaded, setRecordingsLoaded] = useState<boolean>(false);
 
   const fetchRecordings = async () => {
-    console.log("Fetching recordings...");
+    // console.log("Fetching recordings...");
     try {
       const apiRoute = `${EXPO_PUBLIC_API_URL}/recording/recordings?limit=5`;
       const response = await fetchWithAuth(apiRoute);
@@ -29,7 +29,7 @@ export const RecordingsProvider = ({ children }: { children: ReactNode }) => {
       const areDifferent = !areRecordingsIdentical(recordings, data.recordings);
 
       if (areDifferent) {
-        console.log("Different recordings detected");
+        // console.log("Different recordings detected");
         setRecordingsLoaded(false);
         setRecordings(data.recordings);
         setRecordingsLoaded(true);

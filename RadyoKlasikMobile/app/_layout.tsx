@@ -28,7 +28,7 @@ const Layout = () => {
       setTokenInitialized(true);
     };
 
-    console.log("running");
+    // console.log("running");
 
     init();
   }, []);

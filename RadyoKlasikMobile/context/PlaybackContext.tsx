@@ -69,10 +69,10 @@ export const PlaybackProvider = ({ children }: PlaybackProviderProps) => {
           Capability.Stop,
         ],
       });
-      console.log("Setting Up");
+      // console.log("Setting Up");
       setIsPlayerSetup(true);
     } catch (error) {
-      console.log(error);
+      // console.log(error);
     }
   };
 
@@ -83,7 +83,7 @@ export const PlaybackProvider = ({ children }: PlaybackProviderProps) => {
       setIsFinished(true);
       setCurrentTrack(null);
     } catch (error) {
-      console.log(error);
+      // console.log(error);
     }
   };
 

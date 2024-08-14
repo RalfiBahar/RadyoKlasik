@@ -57,7 +57,7 @@ export const usePushNotifications = (): PushNotificationState => {
 
       if (token) {
         const tokenSaveRoute = `${EXPO_PUBLIC_API_URL}/notification/save_notification_token`;
-        console.log(tokenSaveRoute);
+        // console.log(tokenSaveRoute);
         await fetchWithAuth(tokenSaveRoute, {
           method: "POST",
           headers: {
@@ -100,7 +100,7 @@ export const usePushNotifications = (): PushNotificationState => {
       if (!isInitialized) {
         const token = await registerPushNotifications();
         setPushToken(token);
-        console.log("PushToken: ", token);
+        // console.log("PushToken: ", token);
         await AsyncStorage.setItem(INITIALIZATION_KEY, "true");
       }
 
