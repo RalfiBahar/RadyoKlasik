@@ -501,4 +501,47 @@ router.delete(
   }
 );
 
+const announcementFilePath = path.join(__dirname, "..", "announcement.txt");
+
+// Create or overwrite announcement
+router.post("/announcement", tokenRequired, async (req, res) => {
+  const { announcement } = req.body;
+
+  if (!announcement) {
+    return res
+      .status(400)
+      .json({ message: "Announcement content is required" });
+  }
+
+  try {
+    // Write or overwrite the announcement to the file
+    fs.writeFileSync(announcementFilePath, announcement, "utf8");
+    logger.info("Announcement created/updated", { announcement });
+    return res.json({ message: "Announcement created/updated successfully" });
+  } catch (error) {
+    logger.error("Error writing announcement", { error });
+    return res
+      .status(500)
+      .json({ message: "Error creating/updating announcement" });
+  }
+});
+
+// Get the current announcement
+router.get("/announcement", tokenRequired, async (req, res) => {
+  try {
+    if (!fs.existsSync(announcementFilePath)) {
+      logger.warn("No announcement found");
+      return res.status(404).json({ message: "No announcement found" });
+    }
+
+    // Read the current announcement
+    const announcement = fs.readFileSync(announcementFilePath, "utf8");
+    logger.info("Announcement retrieved", { announcement });
+    return res.json({ announcement });
+  } catch (error) {
+    logger.error("Error retrieving announcement", { error });
+    return res.status(500).json({ message: "Error retrieving announcement" });
+  }
+});
+
 module.exports = router;
