@@ -1,6 +1,7 @@
 const express = require("express");
 const session = require("express-session");
 const dotenv = require("dotenv");
+const cors = require("cors");
 const authRoutes = require("./routes/authRoutes");
 const recordingRoutes = require("./routes/recordingRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
