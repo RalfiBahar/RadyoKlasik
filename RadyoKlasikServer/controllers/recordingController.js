@@ -2,7 +2,10 @@ const fs = require("fs");
 const path = require("path");
 const { Router } = require("express");
 const multer = require("multer");
-const { tokenRequired } = require("../middlewares/authMiddleware");
+const {
+  tokenRequired,
+  loginRequired,
+} = require("../middlewares/authMiddleware");
 const Recording = require("../models/recording");
 const { sequelize } = require("../config/database");
 const mime = require("mime-types");
@@ -542,6 +545,12 @@ router.get("/announcement", tokenRequired, async (req, res) => {
     logger.error("Error retrieving announcement", { error });
     return res.status(500).json({ message: "Error retrieving announcement" });
   }
+});
+
+router.get("/announcement-center", loginRequired, (req, res) => {
+  res.render("announcement-center", {
+    shared_secret_key: process.env.SHARED_SECRET_KEY,
+  });
 });
 
 module.exports = router;

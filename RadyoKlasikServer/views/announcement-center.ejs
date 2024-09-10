@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Edit Announcement</title>
+    <link rel="stylesheet" type="text/css" href="/styles/announcement.css" />
+    <script src="/scripts/announcement.js" defer></script>
+  </head>
+  <body>
+    <div class="container">
+      <h2>Edit Announcement</h2>
+
+      <!-- Form group for current announcement -->
+      <div class="form-group">
+        <label for="currentAnnouncement">Current Announcement</label>
+        <textarea id="currentAnnouncement" readonly></textarea>
+      </div>
+
+      <!-- Form group for editing the announcement -->
+      <div class="form-group">
+        <label for="newAnnouncement">Edit Announcement (required)</label>
+        <textarea
+          id="newAnnouncement"
+          required
+          placeholder="Enter the new announcement text here"
+        ></textarea>
+      </div>
+
+      <!-- Buttons for navigation and submission -->
+      <div class="buttons">
+        <button id="backToDashboard">Back to Dashboard</button>
+        <button id="updateAnnouncement">Update Announcement</button>
+      </div>
+
+      <!-- Placeholder for any status messages -->
+      <div class="status-message" id="statusMessage"></div>
+    </div>
+  </body>
+</html>
