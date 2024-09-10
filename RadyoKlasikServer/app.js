@@ -18,6 +18,7 @@ const app = express();
 const allowedOrigins = [
   "https://radyo-klasik-web.vercel.app",
   "https://radyoklasik.online",
+  "https://api.radyoklasik.online",
 ];
 
 // Use CORS middleware
