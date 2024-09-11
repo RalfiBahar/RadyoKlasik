@@ -6,6 +6,7 @@ const authRoutes = require("./routes/authRoutes");
 const recordingRoutes = require("./routes/recordingRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const chatRoutes = require("./routes/chatRoutes");
 const path = require("path");
 const { sequelize } = require("./config/database");
 const Recording = require("./models/recording");
@@ -19,6 +20,7 @@ const allowedOrigins = [
   "https://radyo-klasik-web.vercel.app",
   "https://radyoklasik.online",
   "https://api.radyoklasik.online",
+  "http://localhost:8000",
 ];
 
 // Use CORS middleware
@@ -56,6 +58,7 @@ app.use("/auth", authRoutes);
 app.use("/recording", recordingRoutes);
 app.use("/notification", notificationRoutes);
 app.use("/", dashboardRoutes);
+app.use("/chat", chatRoutes);
 
 (async () => {
   try {

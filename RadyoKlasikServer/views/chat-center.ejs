@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Admin Chat Control</title>
+    <link rel="stylesheet" type="text/css" href="/styles/chat-center.css" />
+    <script src="/scripts/chat-center.js" defer></script>
+  </head>
+  <body>
+    <div class="container">
+      <h2>Admin Chat Control</h2>
+
+      <!-- Form group for admin name -->
+      <div class="form-group">
+        <label for="adminName">Admin Name (required)</label>
+        <input
+          type="text"
+          id="adminName"
+          required
+          placeholder="Enter your admin name here"
+          value="Haymi Bahar"
+        />
+      </div>
+
+      <!-- Form group for sending new admin message -->
+      <div class="form-group">
+        <label for="adminMessage">Send Admin Message (required)</label>
+        <textarea
+          id="adminMessage"
+          required
+          placeholder="Enter your admin message here"
+        ></textarea>
+      </div>
+
+      <!-- Optional logo input -->
+      <div class="form-group">
+        <label for="adminLogo">Admin Logo (optional)</label>
+        <input
+          type="text"
+          id="adminLogo"
+          placeholder="URL to admin logo/icon"
+        />
+      </div>
+
+      <!-- Buttons for sending message -->
+      <div class="buttons">
+        <button id="backToDashboard">Back to Dashboard</button>
+        <button id="sendAdminMessage">Send Admin Message</button>
+      </div>
+
+      <!-- Display user chat history for deletion -->
+      <h3>User Messages</h3>
+      <div class="chat-history" id="chatHistory"></div>
+
+      <!-- Placeholder for any status messages -->
+      <div class="status-message" id="statusMessage"></div>
+    </div>
+  </body>
+</html>

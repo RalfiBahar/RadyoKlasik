@@ -1,0 +1,42 @@
+[
+  {
+    "id": "4b1fa71bebd274dadf2a8115d2ed907c",
+    "message": "sdsdsdfsdf",
+    "sender": "Admin",
+    "timestamp": "2024-09-10T21:25:30.008Z",
+    "admin": true,
+    "logo": null
+  },
+  {
+    "id": "843fb2b74092b7ba9ff29fad281f2501",
+    "message": "sdsdsdfsdfsdffds",
+    "sender": "Admin",
+    "timestamp": "2024-09-10T21:25:31.498Z",
+    "admin": true,
+    "logo": null
+  },
+  {
+    "id": "e91a231786d9b211842ac03bd8d71f95",
+    "message": "sd",
+    "sender": "Admin",
+    "timestamp": "2024-09-10T21:27:20.464Z",
+    "admin": true,
+    "logo": null
+  },
+  {
+    "id": "f55966e3e6ee223f979f32261a586052",
+    "message": "sd",
+    "sender": "Haymi Bahar",
+    "timestamp": "2024-09-10T21:31:17.968Z",
+    "admin": true,
+    "logo": null
+  },
+  {
+    "id": "511d0a88ea2f74111421cb497b3e1100",
+    "message": "bencede",
+    "sender": "Ralfi Bahar",
+    "timestamp": "2024-09-10T21:31:27.858Z",
+    "admin": true,
+    "logo": null
+  }
+]
