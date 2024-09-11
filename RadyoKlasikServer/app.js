@@ -19,6 +19,7 @@ const app = express();
 const allowedOrigins = [
   "https://radyo-klasik-web.vercel.app",
   "https://radyoklasik.online",
+  "https://www.radyoklasik.online",
   "https://api.radyoklasik.online",
   "http://localhost:8000",
 ];
