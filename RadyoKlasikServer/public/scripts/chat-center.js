@@ -1,5 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => {
   const adminMessage = document.getElementById("adminMessage");
+  const adminName = document.getElementById("adminName");
   const adminLogo = document.getElementById("adminLogo");
   const sendAdminMessageButton = document.getElementById("sendAdminMessage");
   const chatHistoryElement = document.getElementById("chatHistory");
@@ -57,6 +58,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Send admin message
   sendAdminMessageButton.addEventListener("click", () => {
+    const sender = adminName.value.trim();
     const message = adminMessage.value.trim();
     const logo = adminLogo.value.trim();
 
@@ -71,7 +73,7 @@ document.addEventListener("DOMContentLoaded", () => {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ message, sender: "Admin", logo }),
+      body: JSON.stringify({ message, sender, logo }),
     })
       .then((response) => response.json())
       .then((data) => {
