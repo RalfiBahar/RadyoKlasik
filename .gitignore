@@ -55,3 +55,7 @@ ios/
 android/
 google-services.json
 extras/
+
+# Bundled royalty-free test media for the Phase 0 stream loop (override *.mp3)
+!infra/liquidsoap/test-media/
+!infra/liquidsoap/test-media/*.mp3

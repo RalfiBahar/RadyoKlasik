@@ -1,0 +1,16 @@
+node_modules
+npm-debug.log
+*.log
+app_logs.log
+database.sqlite
+*.sqlite
+recordings
+recorded_stream*
+.git
+.gitignore
+.env
+.env.*
+Dockerfile
+.dockerignore
+public/static/assets/thumbnails/*.png
+public/static/assets/thumbnails/*.jpg

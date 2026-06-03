@@ -1,0 +1,21 @@
+# Radyo Klasik reverse proxy + automatic HTTPS (Phase 0 scaffolding).
+#
+# On the VPS, set STREAM_DOMAIN / API_DOMAIN to the real hostnames and Caddy
+# will provision Let's Encrypt certificates automatically. Locally you can
+# leave the defaults (Caddy will fail to obtain public certs for those names,
+# which is fine — the Phase 0 smoke test hits Icecast :8000 and the API :8001
+# directly, bypassing Caddy).
+
+{
+	email {$CADDY_EMAIL:admin@radyoklasik.online}
+}
+
+# Icecast stream distribution.
+{$STREAM_DOMAIN:stream.radyoklasik.online} {
+	reverse_proxy icecast:8000
+}
+
+# Node control-plane API.
+{$API_DOMAIN:api.radyoklasik.online} {
+	reverse_proxy api:8001
+}

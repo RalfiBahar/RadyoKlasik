@@ -7,6 +7,7 @@ const recordingRoutes = require("./routes/recordingRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const chatRoutes = require("./routes/chatRoutes");
+const healthRoutes = require("./routes/healthRoutes");
 const path = require("path");
 const { sequelize } = require("./config/database");
 const Recording = require("./models/recording");
@@ -55,6 +56,7 @@ app.set("view engine", "ejs");
 
 app.use(express.static(path.join(__dirname, "public")));
 
+app.use("/api/v1", healthRoutes);
 app.use("/auth", authRoutes);
 app.use("/recording", recordingRoutes);
 app.use("/notification", notificationRoutes);

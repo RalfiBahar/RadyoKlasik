@@ -1,0 +1,144 @@
+# Radyo Klasik self-hosted radio stack — Phase 0 scaffolding.
+# Run from this directory (infra/):  docker compose up --build
+# Requires an infra/.env (see .env.example).
+name: radyoklasik
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-radyo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in infra/.env}
+      POSTGRES_DB: ${POSTGRES_DB:-radyoklasik}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-radyo} -d ${POSTGRES_DB:-radyoklasik}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [radyonet]
+
+  icecast:
+    image: libretime/icecast:2.4.4
+    restart: unless-stopped
+    environment:
+      ICECAST_HOSTNAME: ${ICECAST_HOSTNAME:-localhost}
+      ICECAST_SOURCE_PASSWORD: ${ICECAST_SOURCE_PASSWORD:?set ICECAST_SOURCE_PASSWORD in infra/.env}
+      ICECAST_ADMIN_PASSWORD: ${ICECAST_ADMIN_PASSWORD:?set ICECAST_ADMIN_PASSWORD in infra/.env}
+    # Render env secrets into a writable copy (the mounted config is read-only,
+    # so the repo file is never modified / never leaks secrets), then run.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        sed \
+          -e "s|@ICECAST_HOSTNAME@|$${ICECAST_HOSTNAME}|g" \
+          -e "s|@ICECAST_SOURCE_PASSWORD@|$${ICECAST_SOURCE_PASSWORD}|g" \
+          -e "s|@ICECAST_ADMIN_PASSWORD@|$${ICECAST_ADMIN_PASSWORD}|g" \
+          /etc/icecast/icecast.xml > /tmp/icecast.xml
+        exec icecast -c /tmp/icecast.xml
+    volumes:
+      - ./icecast/icecast.xml:/etc/icecast/icecast.xml:ro
+    ports:
+      - "8000:8000"
+    networks: [radyonet]
+
+  liquidsoap:
+    image: savonet/liquidsoap:v2.2.5
+    restart: unless-stopped
+    depends_on:
+      - icecast
+    environment:
+      ICECAST_HOST: ${ICECAST_HOST:-icecast}
+      ICECAST_PORT: ${ICECAST_PORT:-8000}
+      ICECAST_SOURCE_PASSWORD: ${ICECAST_SOURCE_PASSWORD:?set ICECAST_SOURCE_PASSWORD in infra/.env}
+      TEST_MEDIA_DIR: /srv/test-media
+    entrypoint: ["liquidsoap"]
+    command: ["/etc/liquidsoap/radio.liq"]
+    volumes:
+      - ./liquidsoap/radio.liq:/etc/liquidsoap/radio.liq:ro
+      - ./liquidsoap/test-media:/srv/test-media:ro
+    networks: [radyonet]
+
+  api:
+    build:
+      context: ../RadyoKlasikServer
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      icecast:
+        condition: service_started
+      liquidsoap:
+        condition: service_started
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: ${PORT:-8001}
+      DATABASE_URL: ${DATABASE_URL}
+      ICECAST_HOST: ${ICECAST_HOST:-icecast}
+      ICECAST_PORT: ${ICECAST_PORT:-8000}
+      LIQUIDSOAP_HOST: ${LIQUIDSOAP_HOST:-liquidsoap}
+      LIQUIDSOAP_TELNET_PORT: ${LIQUIDSOAP_TELNET_PORT:-1234}
+      MEDIA_DIR: ${MEDIA_DIR:-/var/media}
+    volumes:
+      - media:/var/media
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8001/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks: [radyonet]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - api
+      - icecast
+    environment:
+      STREAM_DOMAIN: ${STREAM_DOMAIN:-stream.radyoklasik.online}
+      API_DOMAIN: ${API_DOMAIN:-api.radyoklasik.online}
+      CADDY_EMAIL: ${CADDY_EMAIL:-admin@radyoklasik.online}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    ports:
+      - "80:80"
+      - "443:443"
+    networks: [radyonet]
+
+  # Optional S3-compatible object storage for media (Phase 1+).
+  # Enable with:  docker compose --profile minio up
+  minio:
+    image: minio/minio:latest
+    profiles: ["minio"]
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-radyo}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in infra/.env}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks: [radyonet]
+
+networks:
+  radyonet:
+    driver: bridge
+
+volumes:
+  pgdata:
+  media:
+  caddy_data:
+  caddy_config:
+  minio_data:

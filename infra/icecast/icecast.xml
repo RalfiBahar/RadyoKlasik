@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Radyo Klasik self-hosted Icecast2 config (Phase 0 scaffolding).
+
+  Passwords/hostname are injected at container start from environment
+  variables via the compose `command` (the @TOKEN@ placeholders below are
+  replaced with `sed` into /tmp/icecast.xml). This file is mounted READ-ONLY
+  so secrets are never written back into the repo.
+
+  Mounts:
+    /stream     -> MP3 128k  (primary, what the web/mobile players consume)
+    /stream-hd  -> AAC 192k  (placeholder for Phase 9 multi-bitrate)
+-->
+<icecast>
+    <location>Earth</location>
+    <admin>admin@radyoklasik.online</admin>
+    <hostname>@ICECAST_HOSTNAME@</hostname>
+
+    <limits>
+        <clients>1000</clients>
+        <sources>4</sources>
+        <queue-size>524288</queue-size>
+        <client-timeout>30</client-timeout>
+        <header-timeout>15</header-timeout>
+        <source-timeout>10</source-timeout>
+        <burst-on-connect>1</burst-on-connect>
+        <burst-size>65535</burst-size>
+    </limits>
+
+    <authentication>
+        <source-password>@ICECAST_SOURCE_PASSWORD@</source-password>
+        <relay-password>@ICECAST_SOURCE_PASSWORD@</relay-password>
+        <admin-user>admin</admin-user>
+        <admin-password>@ICECAST_ADMIN_PASSWORD@</admin-password>
+    </authentication>
+
+    <listen-socket>
+        <port>8000</port>
+    </listen-socket>
+
+    <!-- CORS so the browser HTML5 player on Vercel can read the stream. -->
+    <http-headers>
+        <header name="Access-Control-Allow-Origin" value="*" />
+        <header name="Access-Control-Allow-Methods" value="GET, OPTIONS, HEAD" />
+        <header name="Access-Control-Allow-Headers" value="Origin, Accept, Range, Icy-MetaData" />
+    </http-headers>
+
+    <mount type="normal">
+        <mount-name>/stream</mount-name>
+        <stream-name>Radyo Klasik</stream-name>
+        <stream-description>Radyo Klasik — self-hosted AutoDJ</stream-description>
+        <genre>Classical</genre>
+        <bitrate>128</bitrate>
+        <type>audio/mpeg</type>
+        <public>1</public>
+    </mount>
+
+    <mount type="normal">
+        <mount-name>/stream-hd</mount-name>
+        <stream-name>Radyo Klasik HD</stream-name>
+        <stream-description>Radyo Klasik — self-hosted AutoDJ (HD)</stream-description>
+        <genre>Classical</genre>
+        <bitrate>192</bitrate>
+        <type>audio/aac</type>
+        <public>0</public>
+    </mount>
+
+    <fileserve>1</fileserve>
+
+    <paths>
+        <basedir>/usr/share/icecast</basedir>
+        <logdir>/var/log/icecast</logdir>
+        <webroot>/usr/share/icecast/web</webroot>
+        <adminroot>/usr/share/icecast/admin</adminroot>
+        <alias source="/" destination="/status.xsl"/>
+    </paths>
+
+    <logging>
+        <accesslog>access.log</accesslog>
+        <errorlog>-</errorlog>
+        <loglevel>3</loglevel>
+        <logsize>10000</logsize>
+    </logging>
+
+    <security>
+        <chroot>0</chroot>
+    </security>
+</icecast>
