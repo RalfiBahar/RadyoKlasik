@@ -13,6 +13,10 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-radyoklasik}
     volumes:
       - pgdata:/var/lib/postgresql/data
+    # Published for host-run integration tests (jest) and local psql. The DSN
+    # the API/Liquidsoap use stays the in-network `postgres` host.
+    ports:
+      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-radyo} -d ${POSTGRES_DB:-radyoklasik}"]
       interval: 5s

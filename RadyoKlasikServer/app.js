@@ -8,9 +8,14 @@ const dashboardRoutes = require("./routes/dashboardRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const chatRoutes = require("./routes/chatRoutes");
 const healthRoutes = require("./routes/healthRoutes");
+const libraryRoutes = require("./routes/libraryRoutes");
+const playlistRoutes = require("./routes/playlistRoutes");
 const path = require("path");
 const { sequelize } = require("./config/database");
-const Recording = require("./models/recording");
+// Loads every model + their associations in one place (no sync() side effects).
+require("./models");
+const { runMigrations } = require("./config/migrate");
+const { MEDIA_DIR } = require("./config/storage");
 const logger = require("./logger");
 
 dotenv.config();
@@ -56,20 +61,30 @@ app.set("view engine", "ejs");
 
 app.use(express.static(path.join(__dirname, "public")));
 
+// Serve uploaded media (artwork, audio) for the library/studio UIs.
+app.use("/media", express.static(MEDIA_DIR));
+
 app.use("/api/v1", healthRoutes);
+app.use("/api/v1/library", libraryRoutes);
+app.use("/api/v1/playlists", playlistRoutes);
 app.use("/auth", authRoutes);
 app.use("/recording", recordingRoutes);
 app.use("/notification", notificationRoutes);
 app.use("/", dashboardRoutes);
 app.use("/chat", chatRoutes);
 
-(async () => {
-  try {
-    await sequelize.sync({ force: false });
-    logger.info("Database synchronized");
-  } catch (error) {
-    console.error("Unable to synchronize the database:", error);
-  }
-})();
+// Schema is managed by migrations (single source of truth) instead of
+// per-model sequelize.sync(), removing the Phase 0 duplicate-table race.
+// Skipped under test, where the harness controls migration timing.
+if (process.env.NODE_ENV !== "test") {
+  (async () => {
+    try {
+      await runMigrations();
+    } catch (error) {
+      logger.error("Unable to run database migrations", { error });
+      console.error("Unable to run database migrations:", error);
+    }
+  })();
+}
 
 module.exports = app;

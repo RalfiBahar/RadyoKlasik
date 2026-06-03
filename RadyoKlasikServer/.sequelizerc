@@ -1,0 +1,9 @@
+const path = require("path");
+
+// Lets `npx sequelize-cli db:migrate` find our migrations + config. At runtime
+// the app applies migrations via config/migrate.js (Umzug); this is only for
+// manual CLI use during development.
+module.exports = {
+  config: path.resolve("config", "sequelize-cli.js"),
+  "migrations-path": path.resolve("migrations"),
+};

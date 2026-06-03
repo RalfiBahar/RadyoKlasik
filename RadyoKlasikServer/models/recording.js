@@ -1,6 +1,5 @@
 const { Sequelize, DataTypes } = require("sequelize");
 const { sequelize } = require("../config/database");
-const logger = require("../logger");
 
 const Recording = sequelize.define(
   "Recording",
@@ -60,8 +59,5 @@ const Recording = sequelize.define(
   }
 );
 
-sequelize.sync({ alter: true }).then(() => {
-  logger.info("Database & tables updated!");
-});
-
+// Schema is managed by migrations (config/migrate.js) — no per-model sync().
 module.exports = Recording;
