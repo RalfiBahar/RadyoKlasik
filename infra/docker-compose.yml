@@ -57,12 +57,20 @@ services:
       ICECAST_HOST: ${ICECAST_HOST:-icecast}
       ICECAST_PORT: ${ICECAST_PORT:-8000}
       ICECAST_SOURCE_PASSWORD: ${ICECAST_SOURCE_PASSWORD:?set ICECAST_SOURCE_PASSWORD in infra/.env}
+      # Phase 2: DB-driven rotation + metadata hook talk to the API.
+      API_BASE: ${API_BASE:-http://api:8001}
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:?set INTERNAL_API_SECRET in infra/.env}
+      CROSSFADE_DURATION: ${CROSSFADE_DURATION:-3.0}
+      # Bundled clips used only for the emergency dead-air fallback.
+      EMERGENCY_MEDIA_DIR: /srv/test-media
       TEST_MEDIA_DIR: /srv/test-media
     entrypoint: ["liquidsoap"]
     command: ["/etc/liquidsoap/radio.liq"]
     volumes:
       - ./liquidsoap/radio.liq:/etc/liquidsoap/radio.liq:ro
       - ./liquidsoap/test-media:/srv/test-media:ro
+      # Phase 2: read access to uploaded tracks selected by /api/v1/playout/next.
+      - media:/var/media:ro
     networks: [radyonet]
 
   api:
@@ -88,8 +96,15 @@ services:
       LIQUIDSOAP_HOST: ${LIQUIDSOAP_HOST:-liquidsoap}
       LIQUIDSOAP_TELNET_PORT: ${LIQUIDSOAP_TELNET_PORT:-1234}
       MEDIA_DIR: ${MEDIA_DIR:-/var/media}
+      # Phase 2: internal secret for the Liquidsoap <-> API playout endpoints,
+      # and seeding a starter rotation from the bundled clips on first boot.
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:?set INTERNAL_API_SECRET in infra/.env}
+      SEED_ON_START: ${SEED_ON_START:-true}
+      SEED_MEDIA_DIR: ${SEED_MEDIA_DIR:-/srv/test-media}
     volumes:
       - media:/var/media
+      # Bundled clips used to seed a starter rotation into the library.
+      - ./liquidsoap/test-media:/srv/test-media:ro
     ports:
       - "8001:8001"
     healthcheck:

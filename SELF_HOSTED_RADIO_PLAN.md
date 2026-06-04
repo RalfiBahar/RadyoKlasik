@@ -284,6 +284,46 @@ flowchart LR
 - Integration: bring up stack with a seeded library; assert stream stays up for 5 min; `nowplaying` changes per track; killing the rotation source falls back to emergency playlist (no dead air); metadata POST writes `PlayHistory`.
 - Manual: listen for crossfades + jingle insertion; confirm loudness is consistent across tracks.
 
+### Status / decisions / gotchas (Phase 2)
+
+**Status: DONE.** All work is on the single plan branch `feature/self-hosted-radio`. The Liquidsoap playout engine is now DB-driven (AutoDJ rotation, ReplayGain normalization, crossfades, jingle cadence, dead-air failover, now-playing metadata hook), the four playout endpoints + the telnet command client are implemented, and a starter rotation is auto-seeded. Verified for real against the Docker Compose stack. Tests: **46/46 passing** (Phase 1's 23 + 23 new), plus a full live E2E (rotation, crossfades, per-track now-playing, PlayHistory writes, dead-air failover, telnet client).
+
+**What landed**
+- **`infra/liquidsoap/radio.liq`** (rewritten from the Phase 0 test loop):
+  - **DB-driven rotation** via `request.dynamic` → `GET /api/v1/playout/next` (with `X-Internal-Secret` header); the API returns a single `annotate:` URI carrying `title/artist/album/track_id/source/liq_amplify` + the absolute file path under the shared media volume. `retry_delay=3.` so it recovers automatically when the API is briefly down.
+  - **Loudness normalization** using the Phase 1 ReplayGain: the API converts `replaygain` (dB) → a linear factor and passes it as the `liq_amplify` annotation; `amplify(1., override="liq_amplify", …)` applies it per track.
+  - **Crossfade** between tracks (`crossfade(duration/fade_in/fade_out=CROSSFADE_DURATION)`).
+  - **Dead-air failover**: `fallback(track_sensitive=false, [autodj, emergency])` then a final `mksafe`. `emergency` is the bundled `/srv/test-media` playlist wrapped in `mksafe` (infallible). Verified: stopping the API keeps the stream alive on the emergency source with zero dead air, and AutoDJ resumes within one retry on restart.
+  - **Now-playing metadata hook**: `autodj.on_track(...)` POSTs `{title,artist,album,track_id,source}` to `POST /api/v1/playout/metadata` (internal secret) so the API caches now-playing and writes `PlayHistory`.
+  - **Telnet command server** stays on `0.0.0.0:1234` (api-only, not published) for skip/push/probe.
+- **Node endpoints** (`controllers/playoutController.js`, `routes/playoutRoutes.js`, mounted in `app.js`):
+  - `GET /api/v1/playout/next` (internal secret) → `annotate:` URI for the next track; 404 + empty body when the library is empty (Liquidsoap then uses its fallback).
+  - `POST /api/v1/playout/metadata` (internal secret) → updates the now-playing cache + writes a `PlayHistory(trackId, source, startedAt)` row (and bumps `playCount`).
+  - `GET /playout/nowplaying` (**public, no `/api/v1` prefix**) → exactly `{ album, artist, title, thumb }` the frontend expects.
+  - `GET /api/v1/playout/status` (JWT) → `{ source, listeners, uptime, currentTrack, autopilot }` (listeners from Icecast `status-json.xsl`, best-effort).
+- **`services/liquidsoapClient.js`** — telnet command wrapper (`command`, `skip`, `pushRequest`, `reachable`); one short-lived connection per command, reads to the `END` terminator. Verified live: `version => Liquidsoap 2.2.5`, `reachable => true` from the api container.
+- **`services/rotation.js`** — pure `chooseNext(state, pools)` selection (no immediate repeats + jingle cadence, `AUTODJ_JINGLE_EVERY` default 4) plus a small runtime-state wrapper. Cleanly unit-testable.
+- **`services/nowPlaying.js`** — in-memory now-playing cache (see decision below; **no new migration**).
+- **`middlewares/internalAuth.js`** — `internalOnly` guard (shared `INTERNAL_API_SECRET` header) for the Liquidsoap↔API endpoints.
+- **`scripts/seedRotation.js`** — seeds a starter rotation by running the Phase 1 ingest over `SEED_MEDIA_DIR` (the bundled clips, mounted into the api container at `/srv/test-media`); 2 songs + 1 jingle. Idempotent (sha256 dedupe; no-op once the library has tracks). Runs on boot when `SEED_ON_START!="false"`, and standalone via `node scripts/seedRotation.js [--force]`.
+- **`infra/docker-compose.yml`**: mounted the `media` volume into the **liquidsoap** container (`:ro`) so it can read tracks selected by `/playout/next`; added `API_BASE`/`INTERNAL_API_SECRET`/`CROSSFADE_DURATION`/`EMERGENCY_MEDIA_DIR` to liquidsoap and `INTERNAL_API_SECRET`/`SEED_ON_START`/`SEED_MEDIA_DIR` + the `test-media` seed mount to the api. **`infra/.env.example`** updated with the new contract vars.
+
+**Decisions**
+- **DB drives selection (`request.dynamic` → `/playout/next`)** rather than a regenerated `.m3u`, so rotation rules live in one testable place. **Jingle cadence is computed in the API** (`/playout/next`), not via a Liquidsoap `rotate`/`switch` jingles source — this is what the Phase 2 unit test ("no immediate repeats, jingle cadence") targets and keeps the cadence DB-controlled. A single AutoDJ source therefore already interleaves jingles.
+- **Now-playing is in-memory, not persisted** (no migration): a track change is cheap and is re-pushed by Liquidsoap on the next track, so a restart just shows empty metadata until the next `on_track`. (The spec explicitly only requires a migration *if* you persist it.)
+- **Auth split**: the internal `/playout/next` + `/playout/metadata` use the shared `INTERNAL_API_SECRET` header (server-to-server), `/playout/status` uses the existing `tokenRequired` JWT, and `/playout/nowplaying` is public.
+- **Normalization via `liq_amplify` annotation** (linear factor from Phase 1 `replaygain`) rather than `enable_replaygain_metadata()` re-analysis at play time — reuses the loudness we already computed at ingest, zero extra CPU on air.
+
+**Gotchas (read before Phase 3)**
+- **Liquidsoap `on_track` must be attached pre-crossfade.** Attaching the metadata hook to the post-`crossfade`/`fallback` source fired **only once** (per-track boundaries are smeared by the crossfade buffer). Attach it to the AutoDJ source right after `amplify` (before `crossfade`) — then it fires once per track as expected.
+- **The metadata POST must run in `thread.run` with a one-shot `data` getter.** Running `http.post` directly in the `on_track` callback (and passing a constant string to `data`, which never signals end-of-body) hangs the callback queue after the first call — audio keeps playing (separate clock) but no further metadata posts fire. Fix: wrap in `thread.run(...)` and feed `data` a getter that yields the body once then `""`.
+- **String interpolation can't nest quotes.** `"#{m["title"]}"` is a **parse error** in Liquidsoap; bind `title = m["title"]` first, then interpolate `#{title}`. Validate any `radio.liq` change with `liquidsoap --check` before restarting (the container restart-loops on a bad script).
+- **`response.status_code` from `http.post` logs as `100`** (the interim `100-continue`) and `523` when the API is unreachable — both are cosmetic in our logs; the API still receives/processes every reachable POST (confirmed by `PlayHistory` + now-playing updates).
+- **Liquidsoap needs read access to `MEDIA_DIR`.** It now mounts the `media` volume at `/var/media:ro`; `MEDIA_DIR` must match between api and liquidsoap so the absolute path in the `annotate:` URI resolves in both.
+- **Host port 8001 shadowing (still applies).** A stray local `node server.js` will answer on `localhost:8001` instead of the container (you'll see `Cannot GET /api/v1/health`); stop it, then re-create the api container so Docker rebinds the published port.
+
+**Run it**: `cd RadyoKlasik/infra && cp .env.example .env && docker compose up --build`. The api seeds a starter rotation on first boot; the stream plays AutoDJ immediately. `GET /playout/nowplaying` for live metadata, `POST /auth/generate_token` then `GET /api/v1/playout/status` for operator status.
+
 ---
 
 ## Phase 3 — Queue & request management
@@ -516,12 +556,12 @@ flowchart LR
 
 ## RadioJar feature parity checklist (acceptance criteria)
 
-- [ ] Continuous AutoDJ playout with crossfades and loudness normalization (Phase 2)
+- [x] Continuous AutoDJ playout with crossfades and loudness normalization (Phase 2 ✅)
 - [x] Media library: songs, jingles, commercials, artists, albums, playlists, tags, search, paging, total size (Phase 1 ✅ backend/API; Phase 5 UI)
 - [x] Upload tracks (drag-drop + metadata + artwork + waveform) (Phase 1 ✅ ingest: metadata/artwork/waveform/loudness; Phase 5 drag-drop UI)
 - [ ] Queue / request management: add, reorder, remove, skip, play-next (Phase 3, 5)
 - [ ] Virtual Studio: browser mic broadcasting, **voice-over ducking**, live takeover, monitoring, transport, autoplay/autofeed toggles (Phase 4, 5)
-- [ ] Dead-air failover / cloud automation when DJ disconnects (Phase 2, 4)
+- [x] Dead-air failover / cloud automation (Phase 2 ✅ rotation-source failover → emergency playlist + mksafe, no dead air; live-DJ disconnect handoff in Phase 4)
 - [ ] DJ & shows management: roles, access control, guest DJs, per-DJ mic prefs, show/episode profiles, collaborative shows (Phase 7)
 - [ ] Scheduling / autopilots / breaks (Phase 7)
 - [ ] Analytics: listeners, sessions, listening time, GB, regional map, hourly, device, track reports, monthly, export (Phase 6)

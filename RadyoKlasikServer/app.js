@@ -10,6 +10,8 @@ const chatRoutes = require("./routes/chatRoutes");
 const healthRoutes = require("./routes/healthRoutes");
 const libraryRoutes = require("./routes/libraryRoutes");
 const playlistRoutes = require("./routes/playlistRoutes");
+const playoutRoutes = require("./routes/playoutRoutes");
+const playoutController = require("./controllers/playoutController");
 const path = require("path");
 const { sequelize } = require("./config/database");
 // Loads every model + their associations in one place (no sync() side effects).
@@ -67,6 +69,9 @@ app.use("/media", express.static(MEDIA_DIR));
 app.use("/api/v1", healthRoutes);
 app.use("/api/v1/library", libraryRoutes);
 app.use("/api/v1/playlists", playlistRoutes);
+app.use("/api/v1/playout", playoutRoutes);
+// Public now-playing (no /api/v1 prefix) — consumed by the web + mobile players.
+app.get("/playout/nowplaying", playoutController.nowplaying);
 app.use("/auth", authRoutes);
 app.use("/recording", recordingRoutes);
 app.use("/notification", notificationRoutes);
@@ -83,6 +88,16 @@ if (process.env.NODE_ENV !== "test") {
     } catch (error) {
       logger.error("Unable to run database migrations", { error });
       console.error("Unable to run database migrations:", error);
+    }
+    // Seed a small AutoDJ rotation so the stream has something to play on a
+    // fresh stack (best-effort; no-op once the library has tracks).
+    if (process.env.SEED_ON_START !== "false") {
+      try {
+        const { seedRotation } = require("./scripts/seedRotation");
+        await seedRotation();
+      } catch (error) {
+        logger.error("Rotation seed on start failed", { error: String(error) });
+      }
     }
   })();
 }
