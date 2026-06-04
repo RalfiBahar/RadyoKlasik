@@ -12,4 +12,8 @@ router.post("/metadata", internalOnly, playout.metadata);
 // Operator status (JWT-protected).
 router.get("/status", tokenRequired, playout.status);
 
+// Phase 3 transport controls (JWT-protected).
+router.post("/skip", tokenRequired, playout.skip);
+router.post("/autopilot", tokenRequired, playout.autopilot);
+
 module.exports = router;

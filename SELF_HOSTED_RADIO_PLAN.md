@@ -360,6 +360,38 @@ flowchart LR
 - Integration: add 3 tracks → they play in order ahead of rotation; reorder reflected; skip advances; autopilot off + empty queue → failover policy holds; WS clients receive `queue:update`.
 - Manual: drive the queue from a REST client and hear the order change live.
 
+### Status / decisions / gotchas (Phase 3)
+
+**Status: DONE.** All work is on the single plan branch `feature/self-hosted-radio`. The operator request queue is implemented end-to-end: a Liquidsoap request queue spliced ahead of AutoDJ, a DB-mirrored `QueueItem` model + migration kept in sync via `services/queueSync.js`, the queue/skip/autopilot endpoints, and live `queue:update` broadcasts over `/ws/studio`. Verified for real against the Docker Compose stack (live: queued items air in order ahead of rotation as `source=request`; reorder rebuilds the Liquidsoap queue; skip advances; autopilot-off + empty queue fails over to the emergency playlist with no dead air; a live WS client received `queue:update`). Tests: **65/65 passing** (Phase 2's 46 + 19 new).
+
+**What landed**
+- **`infra/liquidsoap/radio.liq`**: added `requests = request.queue(id="requests")` spliced ahead of AutoDJ — `program = fallback(track_sensitive=false, [requests, autodj])`, then crossfade, then `fallback(track_sensitive=false, [program, emergency])` + `mksafe`. Queued items are normalized (`amplify` w/ `liq_amplify`) and report now-playing via the same metadata hook. The icecast output got an explicit `id="radio_out"` so the API can skip the current track regardless of source (`radio_out.skip`).
+- **Node endpoints**: `GET/POST /api/v1/queue`, `PATCH /api/v1/queue/reorder { orderedIds }`, `DELETE /api/v1/queue/:id` (`controllers/queueController.js`, `routes/queueRoutes.js`), plus `POST /api/v1/playout/skip` and `POST /api/v1/playout/autopilot { enabled }` (added to `playoutController` + `playoutRoutes`). All JWT-protected (`tokenRequired`). `GET /api/v1/queue` → `{ nowPlaying, items: [{ id, track, requestedBy, status, position, addedAt }] }`.
+- **`models/queueItem.js` + `migrations/20260603000001-queue-items.js`**: `QueueItem(trackId, position, requestedBy, status[pending|playing|done|removed], liqRid)`. The DB owns ORDER (position); Liquidsoap holds the live pending queue. Registered + associated (belongsTo `Track`) in `models/index.js`.
+- **`services/queueSync.js`** (DB ↔ Liquidsoap reconciliation): `pushItem` (append: `requests.push <annotate-uri>`), `reconcile` (remove/reorder: `requests.clear` + re-push pending in position order), `markStarted` (metadata hook flips a queued item → playing/done via the round-tripped `queue_item_id`), `skipCurrent` (`radio_out.skip`), `getState`/`broadcastUpdate`.
+- **`services/playoutUri.js`**: extracted the shared `annotate:` URI builder (now takes `{ source, extra }`) so the playout controller and queueSync both use it without a circular dependency. Queued items carry `source="request"` + `queue_item_id`.
+- **`services/autopilot.js`**: in-memory autopilot flag (default from `AUTOPILOT_DEFAULT`). When off, `GET /api/v1/playout/next` 404s so AutoDJ produces nothing — queued/live content still plays, and the emergency failover holds the air when both are empty. `/playout/status` now reports the real flag.
+- **`ws/studioSocket.js`** + **`server.js`**: a `ws` `WebSocketServer` mounted at `/ws/studio` (Express wrapped in an explicit `http.Server`). `broadcast("queue:update", state)` is called on every queue change and on each track boundary; inert (no-op) when no server/clients (so it's safe under jest/supertest). Added `ws` to deps (lockfile updated).
+- **`infra/.env.example`**: documented `LIQUIDSOAP_QUEUE_ID`, `LIQUIDSOAP_OUTPUT_ID`, `AUTOPILOT_DEFAULT`.
+
+**Decisions**
+- **`request.queue`, not `request.equeue`**: the spec suggested `request.queue` *(or request.equeue)*, but `request.equeue` does **not exist in Liquidsoap 2.2.5** (`--check`: "this value has no method `equeue`"; it was deprecated/removed by 2.4). `request.queue` only registers `push`/`queue`/`skip` over telnet (no per-item remove). So the **DB is the source of truth for order** and the API rebuilds the Liquidsoap pending queue on remove/reorder via a registered custom `requests.clear` command (built on the source's script-level `set_queue` method) + re-push. Append is a fast-path single `push`.
+- **`track_sensitive=false` for `[requests, autodj]`** (per the spec example). Combined with the crossfade above the fallback, a freshly-queued item takes over at the next track boundary (the current AutoDJ track finishes, then the queue plays in order), then rotation resumes when the queue empties.
+- **Source label is fixed per on_track hook, not via annotation.** The `source` annotation key does **not** round-trip through Liquidsoap (Phase 2 never noticed because AutoDJ's default was already "autodj"). So `make_on_track("autodj")` / `make_on_track("request")` fix the source per source; the custom `queue_item_id` annotate key **does** round-trip and lets the metadata hook mark the exact `QueueItem` as aired (→ `PlayHistory.source = "request"`).
+- **Autopilot enforced in the API** (`/playout/next` 404s when off) rather than via a Liquidsoap switch — keeps the policy in one testable place and reuses the existing failover chain to hold dead air.
+- **Queue state is broadcast, not just stored**: the metadata hook also drives `queue:update` so the studio NEXT panel reflects items leaving the queue as they air.
+
+**Gotchas (read before Phase 4)**
+- **`request.equeue` is gone in 2.2.5** — use `request.queue` + `set_queue`-backed custom commands (above) for editability.
+- **AutoDJ's skip command is `autodj.flush_and_skip`, not `autodj.skip`** (request.dynamic only registers `flush_and_skip`). The Phase 2 `liquidsoapClient` unit test passes `autodj.skip` against a *mock* telnet, so it doesn't catch this. Phase 3's skip uses the **output** source instead (`radio_out.skip`), which robustly skips whatever is on air. If you need to skip a specific source, prefer `radio_out.skip` or `requests.skip`.
+- **Queued items air FAST in the dev stack** (18s test clips + `track_sensitive=false`): a queued item often flips to `playing` (and leaves the pending list) within a second or two of being added, so live "add 3 then read back 3 pending" is racy. The deterministic ordering/reorder assertions live in the jest integration suite (Liquidsoap client mocked); the live verification confirms the *behavior* (order ahead of rotation, reorder rebuilds the LS queue, skip advances).
+- **`reconcile` (clear + re-push) reassigns RIDs**; the already-prefetched head request (in Liquidsoap's primary queue) can still play before a reorder takes full effect. Acceptable for a queue panel; the DB stays authoritative.
+- **`source` annotation doesn't round-trip** (see decision) — never rely on annotate `source` server-side; fix it per on_track hook.
+- **Tests still run in the Node 20 container on the compose network.** New deps mean the **api image must be rebuilt** before the canonical test run (the run mounts host source but reuses the image's `node_modules`, so `ws` must be baked in): `docker compose up -d --build api` first. Baseline is now **65/65**.
+- **Host port 8001 shadowing (still applies).** A stray local `node server.js` shadows the container; stop it and recreate the api container.
+
+**Run it**: `cd RadyoKlasik/infra && cp .env.example .env && docker compose up --build`. `POST /auth/generate_token` for a JWT, then `POST /api/v1/queue { trackId }` to enqueue, `PATCH /api/v1/queue/reorder`, `DELETE /api/v1/queue/:id`, `POST /api/v1/playout/skip`, `POST /api/v1/playout/autopilot { enabled }`; subscribe to `ws://<api>/ws/studio` for `queue:update`.
+
 ---
 
 ## Phase 4 — Live DJ: Virtual Studio engine (WebRTC mic over music)
@@ -559,7 +591,7 @@ flowchart LR
 - [x] Continuous AutoDJ playout with crossfades and loudness normalization (Phase 2 ✅)
 - [x] Media library: songs, jingles, commercials, artists, albums, playlists, tags, search, paging, total size (Phase 1 ✅ backend/API; Phase 5 UI)
 - [x] Upload tracks (drag-drop + metadata + artwork + waveform) (Phase 1 ✅ ingest: metadata/artwork/waveform/loudness; Phase 5 drag-drop UI)
-- [ ] Queue / request management: add, reorder, remove, skip, play-next (Phase 3, 5)
+- [x] Queue / request management: add, reorder, remove, skip, play-next (Phase 3 ✅ backend/API: request queue spliced ahead of AutoDJ, QueueItem mirror, /api/v1/queue + skip + autopilot, /ws/studio queue:update; Phase 5 UI)
 - [ ] Virtual Studio: browser mic broadcasting, **voice-over ducking**, live takeover, monitoring, transport, autoplay/autofeed toggles (Phase 4, 5)
 - [x] Dead-air failover / cloud automation (Phase 2 ✅ rotation-source failover → emergency playlist + mksafe, no dead air; live-DJ disconnect handoff in Phase 4)
 - [ ] DJ & shows management: roles, access control, guest DJs, per-DJ mic prefs, show/episode profiles, collaborative shows (Phase 7)

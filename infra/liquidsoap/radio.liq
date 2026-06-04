@@ -1,15 +1,22 @@
-# Radyo Klasik playout engine — Phase 2: DB-driven AutoDJ + now-playing.
+# Radyo Klasik playout engine — Phase 2 (AutoDJ) + Phase 3 (request queue).
 #
 # - Rotation is driven by the control-plane DB: request.dynamic fetches each
 #   next track from GET /api/v1/playout/next (which returns an `annotate:` URI).
+#   When autopilot is OFF the API returns 404, so AutoDJ produces nothing.
+# - Phase 3: an editable request queue (request.equeue, id="requests") is
+#   spliced AHEAD of AutoDJ in the fallback chain, so operator-queued items play
+#   before rotation resumes. The API pushes / removes / lists queued items over
+#   the telnet command server and keeps a DB mirror (QueueItem) in sync.
 # - Loudness is normalized per-track using the ReplayGain computed at ingest
 #   (Phase 1), carried in the `liq_amplify` annotation.
 # - Tracks crossfade into each other.
-# - A fallback chain guarantees there is never dead air: if the API rotation
-#   can't produce audio, a bundled emergency playlist takes over, and mksafe
-#   streams blank as a last resort.
+# - A fallback chain guarantees there is never dead air: if neither queued nor
+#   AutoDJ audio is available (e.g. autopilot off + empty queue, API down) a
+#   bundled emergency playlist takes over, and mksafe streams blank as a last
+#   resort.
 # - On each new track, on_track POSTs metadata to /api/v1/playout/metadata so
-#   the API caches now-playing and writes PlayHistory.
+#   the API caches now-playing and writes PlayHistory (source "request" for
+#   queued items, carrying queue_item_id so the API can mark it as aired).
 # - The telnet command server lets the API push requests / skip / probe.
 
 # --- Settings -------------------------------------------------------------
@@ -63,38 +70,46 @@ end
 # queue, and `data` is a one-shot getter that yields the body once then "" to
 # correctly signal end-of-body. Attached to the AutoDJ source *before*
 # crossfade, where each request produces a clean track boundary.
-def on_track_meta(m) =
-  title = m["title"]
-  src = m["source"]
-  payload =
-    json.stringify(
-      {
-        title = title,
-        artist = m["artist"],
-        album = m["album"],
-        track_id = m["track_id"],
-        source = if src == "" then "autodj" else src end
-      }
-    )
-  def task() =
-    sent = ref(false)
-    def body() =
-      if sent() then "" else sent := true; payload end
-    end
-    response =
-      http.post(
-        meta_url,
-        headers=
-          [
-            ("Content-Type", "application/json"),
-            ("X-Internal-Secret", internal_secret)
-          ],
-        data=body
+# Build an on_track handler that posts metadata with a fixed `source`. The
+# `source` annotation key is NOT relied upon to round-trip through Liquidsoap
+# (it does not), so the playout source is fixed per hook: "autodj" for rotation
+# and "request" for the queue. queue_item_id (a custom annotate key) does
+# round-trip, letting the API mark the matching QueueItem as aired.
+def make_on_track(default_source) =
+  def on_track_meta(m) =
+    title = m["title"]
+    payload =
+      json.stringify(
+        {
+          title = title,
+          artist = m["artist"],
+          album = m["album"],
+          track_id = m["track_id"],
+          queue_item_id = m["queue_item_id"],
+          source = default_source
+        }
       )
-    code = response.status_code
-    log(level=3, "playout/metadata POST -> HTTP #{code} (#{title})")
+    def task() =
+      sent = ref(false)
+      def body() =
+        if sent() then "" else sent := true; payload end
+      end
+      response =
+        http.post(
+          meta_url,
+          headers=
+            [
+              ("Content-Type", "application/json"),
+              ("X-Internal-Secret", internal_secret)
+            ],
+          data=body
+        )
+      code = response.status_code
+      log(level=3, "playout/metadata POST -> HTTP #{code} (#{title})")
+    end
+    thread.run(task)
   end
-  thread.run(task)
+  on_track_meta
 end
 
 autodj = request.dynamic(id="autodj", retry_delay=3., fetch_next)
@@ -104,22 +119,63 @@ autodj = request.dynamic(id="autodj", retry_delay=3., fetch_next)
 autodj = amplify(id="normalize", 1., override="liq_amplify", autodj)
 
 # Report now-playing at each AutoDJ track change (pre-crossfade boundary).
-autodj.on_track(on_track_meta)
+autodj.on_track(make_on_track("autodj"))
 
-# Smooth crossfades between consecutive tracks.
-autodj =
+# --- Request queue (Phase 3) ---------------------------------------------
+# A request queue the API drives over telnet:
+#   requests.push <uri>   -> enqueue (returns a request id / RID)
+#   requests.queue        -> list pending RIDs (order)
+#   requests.clear        -> drop all pending items (registered below)
+# request.queue has no per-item removal over telnet, so the API treats its DB
+# QueueItem table as the source of truth for order and rebuilds the Liquidsoap
+# pending queue (clear + re-push in order) on remove/reorder. Items are pushed
+# as `annotate:` URIs carrying source="request" and a queue_item_id, so the
+# metadata hook reports them as requests and the API can mark the matching
+# QueueItem as aired. Empty => fallible => AutoDJ resumes.
+requests = request.queue(id="requests")
+
+# Expose a clear command (request.queue only registers push/queue/skip). Uses
+# the source's set_queue method to empty the user (secondary) queue so the API
+# can rebuild it from its DB mirror.
+def clear_requests(_) =
+  requests.set_queue([])
+  "Done."
+end
+server.register(
+  namespace="requests",
+  description="Clear all pending queued requests.",
+  usage="clear",
+  "clear",
+  clear_requests
+)
+
+# Normalize queued items with the same ReplayGain override as rotation.
+requests = amplify(id="req_normalize", 1., override="liq_amplify", requests)
+
+# Report now-playing for queued items too (pre-crossfade boundary).
+requests.on_track(make_on_track("request"))
+
+# Queued items play ahead of rotation; when the queue empties, AutoDJ resumes.
+# track_sensitive=false so a freshly-queued item takes over promptly.
+program =
+  fallback(id="program", track_sensitive=false, [requests, autodj])
+
+# Smooth crossfades between consecutive tracks / source transitions. Applied
+# above the per-source on_track hooks (which need clean pre-crossfade
+# boundaries) but below the emergency failover.
+program =
   crossfade(
-    id="autodj_xfade",
+    id="program_xfade",
     duration=crossfade_dur,
     fade_in=crossfade_dur,
     fade_out=crossfade_dur,
-    autodj
+    program
   )
 
 # --- Emergency / dead-air failover ---------------------------------------
-# If the DB rotation can't produce audio (API down, empty library, network
-# blip) we fall back to a bundled playlist, then to mksafe blank — never dead
-# air. mksafe makes the emergency source infallible.
+# If neither queued nor AutoDJ audio is available (API down, empty library,
+# autopilot off + empty queue) we fall back to a bundled playlist, then to
+# mksafe blank — never dead air. mksafe makes the emergency source infallible.
 emergency =
   playlist(
     id="emergency",
@@ -129,14 +185,17 @@ emergency =
   )
 emergency = mksafe(emergency)
 
-# Failover chain. Live/request sources slot in ahead of autodj in later phases;
-# today it is [autodj, emergency]. track_sensitive=false returns to a
-# higher-priority source as soon as it is available again (immediate failover).
-radio = fallback(id="radio", track_sensitive=false, [autodj, emergency])
+# Failover chain: [program (requests -> autodj), emergency].
+# track_sensitive=false returns to a higher-priority source as soon as it is
+# available again (immediate failover).
+radio = fallback(id="radio", track_sensitive=false, [program, emergency])
 radio = mksafe(radio)
 
 # --- Output ---------------------------------------------------------------
+# Explicit id so the API can `radio_out.skip` the current track regardless of
+# which underlying source (requests / autodj / emergency) is on air.
 output.icecast(
+  id="radio_out",
   %mp3(bitrate=128),
   host=icecast_host,
   port=icecast_port,

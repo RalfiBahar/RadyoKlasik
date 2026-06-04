@@ -11,6 +11,7 @@ const healthRoutes = require("./routes/healthRoutes");
 const libraryRoutes = require("./routes/libraryRoutes");
 const playlistRoutes = require("./routes/playlistRoutes");
 const playoutRoutes = require("./routes/playoutRoutes");
+const queueRoutes = require("./routes/queueRoutes");
 const playoutController = require("./controllers/playoutController");
 const path = require("path");
 const { sequelize } = require("./config/database");
@@ -70,6 +71,7 @@ app.use("/api/v1", healthRoutes);
 app.use("/api/v1/library", libraryRoutes);
 app.use("/api/v1/playlists", playlistRoutes);
 app.use("/api/v1/playout", playoutRoutes);
+app.use("/api/v1/queue", queueRoutes);
 // Public now-playing (no /api/v1 prefix) — consumed by the web + mobile players.
 app.get("/playout/nowplaying", playoutController.nowplaying);
 app.use("/auth", authRoutes);

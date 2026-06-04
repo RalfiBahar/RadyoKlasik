@@ -14,6 +14,7 @@ const User = require("./userAccount");
 const Show = require("./show");
 const Episode = require("./episode");
 const PlayHistory = require("./playHistory");
+const QueueItem = require("./queueItem");
 const Recording = require("./recording");
 const NotificationToken = require("./notificationToken");
 
@@ -55,6 +56,10 @@ Track.hasMany(PlaylistItem, { foreignKey: "trackId", as: "playlistItems" });
 Track.hasMany(PlayHistory, { foreignKey: "trackId", as: "plays" });
 PlayHistory.belongsTo(Track, { foreignKey: "trackId", as: "track" });
 
+// --- Queue items (Phase 3) -------------------------------------------------
+Track.hasMany(QueueItem, { foreignKey: "trackId", as: "queueItems" });
+QueueItem.belongsTo(Track, { foreignKey: "trackId", as: "track" });
+
 // --- Shows / episodes ------------------------------------------------------
 Show.hasMany(Episode, { foreignKey: "showId", as: "episodes" });
 Episode.belongsTo(Show, { foreignKey: "showId", as: "show" });
@@ -72,6 +77,7 @@ module.exports = {
   Show,
   Episode,
   PlayHistory,
+  QueueItem,
   Recording,
   NotificationToken,
 };

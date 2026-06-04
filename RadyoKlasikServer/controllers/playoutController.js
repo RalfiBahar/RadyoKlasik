@@ -1,49 +1,25 @@
-const path = require("path");
 const axios = require("axios");
 
 const { Track, PlayHistory } = require("../models");
-const { MEDIA_DIR } = require("../config/storage");
 const rotation = require("../services/rotation");
 const nowPlaying = require("../services/nowPlaying");
+const autopilot = require("../services/autopilot");
+const queueSync = require("../services/queueSync");
+const { replaygainToLinear, annotateUri } = require("../services/playoutUri");
 const logger = require("../logger");
 
 const PLAY_SOURCES = ["autodj", "live", "request"];
 
-// Convert a Phase 1 ReplayGain value (dB to reach the reference loudness) into
-// the linear multiplicative factor Liquidsoap's `amplify` operator expects via
-// the `liq_amplify` annotation.
-function replaygainToLinear(replaygain) {
-  const db = Number(replaygain);
-  if (replaygain == null || Number.isNaN(db)) return 1;
-  return Math.pow(10, db / 20);
-}
-
-// Build the `annotate:` URI Liquidsoap plays. The annotation carries the
-// metadata that round-trips back via the on_track hook (so the API can map the
-// track and write PlayHistory) plus the per-track loudness normalization.
-function annotateUri(track) {
-  const abs = path.isAbsolute(track.filePath)
-    ? track.filePath
-    : path.join(MEDIA_DIR, track.filePath);
-  const fields = {
-    title: track.title || "",
-    artist: track.artist || "",
-    album: track.album || "",
-    track_id: track.id,
-    source: "autodj",
-    liq_amplify: replaygainToLinear(track.replaygain).toFixed(4),
-  };
-  const annotation = Object.entries(fields)
-    .map(([key, value]) => `${key}=${JSON.stringify(String(value))}`)
-    .join(",");
-  return `annotate:${annotation}:${abs}`;
-}
-
 // GET /api/v1/playout/next  (internal; called by Liquidsoap request.dynamic)
 // Returns a single `annotate:` URI (text/plain) for the next track, or 404 +
-// empty body when the library is empty (Liquidsoap then uses its fallback).
+// empty body when the library is empty OR autopilot is off (Liquidsoap then
+// uses its fallback: queued items, else the emergency playlist).
 exports.next = async (req, res) => {
   try {
+    if (!autopilot.isEnabled()) {
+      logger.info("playout/next: autopilot off, no rotation");
+      return res.status(404).type("text/plain").send("");
+    }
     const attributes = [
       "id",
       "title",
@@ -107,6 +83,18 @@ exports.metadata = async (req, res) => {
       );
     }
 
+    // Phase 3: advance the queue mirror. Demote the previously-playing queued
+    // item to "done" and, if this track is a queued item (queue_item_id round-
+    // tripped through Liquidsoap), flip it to "playing", then push the fresh
+    // queue state to studio WS clients.
+    const queueItemId = body.queue_item_id || body.queueItemId || null;
+    try {
+      await queueSync.markStarted(queueItemId);
+      await queueSync.broadcastUpdate();
+    } catch (err) {
+      logger.warn("queue markStarted failed", { error: String(err) });
+    }
+
     logger.info("nowplaying updated", { title, artist, source });
     return res.json({ ok: true, nowPlaying: np });
   } catch (err) {
@@ -150,8 +138,44 @@ exports.status = async (req, res) => {
           startedAt: np.startedAt,
         }
       : null,
-    autopilot: true,
+    autopilot: autopilot.isEnabled(),
   });
+};
+
+// POST /api/v1/playout/skip  (operator; JWT) — skip the current track on air,
+// whatever source (queue / AutoDJ / emergency) is playing.
+exports.skip = async (req, res) => {
+  try {
+    const result = await queueSync.skipCurrent();
+    logger.info("playout/skip", { result });
+    return res.json({ ok: true });
+  } catch (err) {
+    logger.error("playout/skip failed", { error: String(err) });
+    return res.status(502).json({ ok: false, error: String(err) });
+  }
+};
+
+// POST /api/v1/playout/autopilot { enabled }  (operator; JWT)
+// When disabled, AutoDJ rotation stops feeding the stream (GET /next 404s); the
+// queue (and later live) still play, and the emergency failover holds the air
+// when both are empty.
+exports.autopilot = async (req, res) => {
+  const body = req.body || {};
+  if (typeof body.enabled !== "boolean") {
+    return res.status(400).json({ error: "enabled (boolean) is required" });
+  }
+  autopilot.set(body.enabled);
+  // Optionally cut the current AutoDJ track immediately when disabling so the
+  // queue/failover takes over without waiting for the track to finish.
+  if (!body.enabled && req.body.skipCurrent) {
+    try {
+      await queueSync.skipCurrent();
+    } catch (err) {
+      logger.warn("autopilot skip-on-disable failed", { error: String(err) });
+    }
+  }
+  logger.info("playout/autopilot", { enabled: autopilot.isEnabled() });
+  return res.json({ autopilot: autopilot.isEnabled() });
 };
 
 // Best-effort listener count from Icecast's public status JSON.
