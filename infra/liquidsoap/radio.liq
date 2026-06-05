@@ -43,8 +43,26 @@ internal_secret = env_or("INTERNAL_API_SECRET", "dev-internal")
 emergency_dir = env_or("EMERGENCY_MEDIA_DIR", "/srv/test-media")
 crossfade_dur = float_of_string(env_or("CROSSFADE_DURATION", "3.0"))
 
+# --- Phase 4: live DJ harbor ---------------------------------------------
+# The studio browser mic is bridged into Liquidsoap as an Icecast SOURCE on an
+# input.harbor mount inside this container (Node runs ffmpeg: browser -> WS Opus
+# -> ffmpeg -> icecast://.../live). The port lives on the private compose
+# network only (NOT published to the host).
+live_harbor_port = int_of_string(env_or("LIVE_HARBOR_PORT", "8005"))
+live_harbor_user = env_or("LIVE_HARBOR_USER", "source")
+live_harbor_password = env_or("LIVE_HARBOR_PASSWORD", "hackme-live")
+# Seconds the harbor tolerates silence/stalls before declaring the source dead
+# and failing back to AutoDJ (the configurable failback window).
+live_harbor_timeout = float_of_string(env_or("LIVE_HARBOR_TIMEOUT", "10.0"))
+# Default voice-over duck level (portion of music amplitude kept under voice);
+# overridden per-DJ at connect via the telnet interactive var.
+live_duck_level = float_of_string(env_or("LIVE_DUCK_LEVEL", "0.25"))
+# Cross/fade duration for the live mic fading in/out over the music.
+live_fade = float_of_string(env_or("LIVE_FADE_DURATION", "0.8"))
+
 next_url = "#{api_base}/api/v1/playout/next"
 meta_url = "#{api_base}/api/v1/playout/metadata"
+harbor_url = "#{api_base}/api/v1/playout/harbor"
 
 # --- AutoDJ: DB-driven rotation ------------------------------------------
 # request.dynamic calls the API for each next track. The API returns an
@@ -185,15 +203,117 @@ emergency =
   )
 emergency = mksafe(emergency)
 
-# Failover chain: [program (requests -> autodj), emergency].
-# track_sensitive=false returns to a higher-priority source as soon as it is
-# available again (immediate failover).
-radio = fallback(id="radio", track_sensitive=false, [program, emergency])
+# Music failover chain: [program (requests -> autodj), emergency]. Always ready
+# (emergency is infallible) so there is never dead air on the music bed.
+music = fallback(id="music", track_sensitive=false, [program, emergency])
+music = mksafe(music)
+
+# --- Phase 4: live DJ mix + voice-over ducking ---------------------------
+# Two interactive (telnet-settable) controls drive the live behavior so the API
+# can switch modes per session / per DJ without reloading the script:
+#   live_music_gain  master music gain. 1.0 for voice-over/idle; the API sets
+#                    it to 0.0 for FULL TAKEOVER (mic replaces music). The
+#                    harbor on_disconnect handler resets it to 1.0 so AutoDJ
+#                    resumes instantly on a dropped studio connection.
+#   live_duck        smooth_add `p` = portion of music amplitude kept while the
+#                    mic is talking (the per-DJ voice-over duck level). The API
+#                    sets it from User.micPreferencesJson at connect.
+music_gain = interactive.float(min=0., max=1., "live_music_gain", 1.)
+live_duck = interactive.float(min=0., max=1., "live_duck", live_duck_level)
+# Per-DJ input gain applied to the mic (from User.micPreferencesJson).
+mic_gain = interactive.float(min=0., max=4., "live_mic_gain", 1.)
+
+# Notify the API when the live SOURCE actually connects/disconnects (the
+# authoritative "audio is flowing" signal, independent of the WS). Runs in a
+# thread with a one-shot body getter (same gotcha-avoidance as the metadata
+# hook: a constant `data` string hangs the callback queue).
+def notify_harbor(event) =
+  payload = json.stringify({ event = event })
+  def task() =
+    sent = ref(false)
+    def body() =
+      if sent() then "" else sent := true; payload end
+    end
+    response =
+      http.post(
+        harbor_url,
+        headers=
+          [
+            ("Content-Type", "application/json"),
+            ("X-Internal-Secret", internal_secret)
+          ],
+        data=body
+      )
+    log(level=3, "playout/harbor #{event} -> HTTP #{response.status_code}")
+  end
+  thread.run(task)
+end
+
+# The DJ mic, received as an Icecast SOURCE on the harbor mount "/live".
+live =
+  input.harbor(
+    id="live",
+    port=live_harbor_port,
+    user=live_harbor_user,
+    password=live_harbor_password,
+    timeout=live_harbor_timeout,
+    buffer=2.,
+    on_connect=
+      fun(_) ->
+        begin
+          log(level=3, "live harbor: source connected")
+          notify_harbor("connect")
+        end,
+    on_disconnect=
+      fun() ->
+        begin
+          # Restore music instantly so a dropped studio never leaves dead air,
+          # even mid full-takeover (music_gain was 0).
+          music_gain.set(1.)
+          log(level=3, "live harbor: source disconnected")
+          notify_harbor("disconnect")
+        end,
+    "live"
+  )
+
+# Per-DJ input gain on the mic (override=null() so it is never clobbered by
+# track metadata — the harbor stream carries none anyway).
+live = amplify(id="mic_gain", override=null(), {mic_gain()}, live)
+
+# Expose the live mic RMS (0..1) over telnet for studio:state level metering.
+live = rms(id="live_rms", live)
+def live_level(_) =
+  lvl = live.rms()
+  "#{lvl}"
+end
+server.register(
+  namespace="studio",
+  description="Current live mic RMS level (0..1).",
+  usage="level",
+  "level",
+  live_level
+)
+
+# Master music gain (full-takeover cut). override=null so per-track liq_amplify
+# normalization (already applied upstream) does NOT clobber this master gain.
+music = amplify(id="music_gain", override=null(), {music_gain()}, music)
+
+# Live mix: when the mic (special) has audio, music (normal) fades down to the
+# duck level `p`; when the mic is silent, music returns to full. With
+# music_gain=0 (full takeover) only the mic is heard. When the harbor is not
+# connected, smooth_add simply streams the music bed (no dead air).
+radio =
+  smooth_add(
+    duration=live_fade,
+    p={live_duck()},
+    normal=music,
+    special=live
+  )
 radio = mksafe(radio)
 
 # --- Output ---------------------------------------------------------------
 # Explicit id so the API can `radio_out.skip` the current track regardless of
-# which underlying source (requests / autodj / emergency) is on air.
+# which underlying source (live / requests / autodj / emergency) is on air.
 output.icecast(
   id="radio_out",
   %mp3(bitrate=128),
@@ -202,7 +322,7 @@ output.icecast(
   password=source_password,
   mount="/stream",
   name="Radyo Klasik",
-  description="Radyo Klasik — self-hosted AutoDJ",
+  description="Radyo Klasik — self-hosted AutoDJ + Live",
   genre="Classical",
   radio
 )

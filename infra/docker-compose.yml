@@ -61,9 +61,20 @@ services:
       API_BASE: ${API_BASE:-http://api:8001}
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:?set INTERNAL_API_SECRET in infra/.env}
       CROSSFADE_DURATION: ${CROSSFADE_DURATION:-3.0}
+      # Phase 4: live DJ harbor (input.harbor /live). Port stays on radyonet
+      # (NOT published to the host); the api container reaches it for ffmpeg.
+      LIVE_HARBOR_PORT: ${LIVE_HARBOR_PORT:-8005}
+      LIVE_HARBOR_USER: ${LIVE_HARBOR_USER:-source}
+      LIVE_HARBOR_PASSWORD: ${LIVE_HARBOR_PASSWORD:?set LIVE_HARBOR_PASSWORD in infra/.env}
+      LIVE_HARBOR_TIMEOUT: ${LIVE_HARBOR_TIMEOUT:-10.0}
+      LIVE_DUCK_LEVEL: ${LIVE_DUCK_LEVEL:-0.25}
+      LIVE_FADE_DURATION: ${LIVE_FADE_DURATION:-0.8}
       # Bundled clips used only for the emergency dead-air fallback.
       EMERGENCY_MEDIA_DIR: /srv/test-media
       TEST_MEDIA_DIR: /srv/test-media
+    # The harbor port is reachable on the private radyonet only.
+    expose:
+      - "${LIVE_HARBOR_PORT:-8005}"
     entrypoint: ["liquidsoap"]
     command: ["/etc/liquidsoap/radio.liq"]
     volumes:
@@ -101,6 +112,15 @@ services:
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:?set INTERNAL_API_SECRET in infra/.env}
       SEED_ON_START: ${SEED_ON_START:-true}
       SEED_MEDIA_DIR: ${SEED_MEDIA_DIR:-/srv/test-media}
+      # Phase 4: where the live mic ingest (ws/ingest.js -> ffmpeg) publishes to
+      # the Liquidsoap harbor, plus the auto-failback window + duck defaults.
+      LIVE_HARBOR_PORT: ${LIVE_HARBOR_PORT:-8005}
+      LIVE_HARBOR_USER: ${LIVE_HARBOR_USER:-source}
+      LIVE_HARBOR_PASSWORD: ${LIVE_HARBOR_PASSWORD:?set LIVE_HARBOR_PASSWORD in infra/.env}
+      LIVE_HARBOR_MOUNT: ${LIVE_HARBOR_MOUNT:-live}
+      LIVE_FALLBACK_TIMEOUT_MS: ${LIVE_FALLBACK_TIMEOUT_MS:-8000}
+      LIVE_DUCK_LEVEL: ${LIVE_DUCK_LEVEL:-0.25}
+      LIVE_SILENCE_THRESHOLD: ${LIVE_SILENCE_THRESHOLD:-0.05}
     volumes:
       - media:/var/media
       # Bundled clips used to seed a starter rotation into the library.
