@@ -640,10 +640,14 @@ nowplaying → studio session start/stop, plus `/ws/studio` greeting + role guar
   **empty payload (no role claim)** — real role-based backend auth is Phase 7. So
   the login screen picks a role and `permissions.ts` guards routes client-side.
   When Phase 7 adds a `role` claim, read it from the JWT instead of the picker.
-- **Next rewrites for REST, direct WS.** Avoids CORS for REST/media without
-  touching the backend allowlist; WS can't be proxied by rewrites so it uses
-  `NEXT_PUBLIC_WS_URL`. (`app.js` CORS still lacks `localhost:3001`, which is
-  fine precisely because nothing hits it cross-origin.)
+- **Next rewrites for REST, direct WS.** REST/media are proxied so the browser
+  is same-origin; WS can't be proxied by rewrites so it uses `NEXT_PUBLIC_WS_URL`.
+  **Caveat (fixed):** Next's rewrite proxy **forwards the browser `Origin`
+  header** to the backend, so the backend CORS allowlist must include the studio
+  origin — otherwise `cors()` throws and every proxied request 500s (the login
+  POST returned a 148-byte Express error page). `app.js` now allows
+  `http://localhost:3001/3000` + `https://studio.radyoklasik.online` (and an
+  `EXTRA_CORS_ORIGINS` env), and adds `PATCH`/`OPTIONS` to the allowed methods.
 - **Bumped Next 14.2.5 → 14.2.35** (the `next-14` patched dist-tag) to clear the
   known 14.2.5 security advisory while staying on the requested Next 14 line.
 - **Mic ingest = `MediaRecorder` (webm/ogg Opus) → binary WS frames**, matching

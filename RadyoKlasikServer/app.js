@@ -32,7 +32,21 @@ const allowedOrigins = [
   "https://www.radyoklasik.online",
   "https://api.radyoklasik.online",
   "http://localhost:8000",
+  // Phase 5 DJ studio (radyo-klasik-studio). Its Next dev server proxies REST
+  // here and forwards the browser Origin, so the studio origin must be allowed.
+  "http://localhost:3001",
+  "http://localhost:3000",
+  "https://studio.radyoklasik.online",
 ];
+
+// Extra studio origins can be supplied via env (comma-separated) for other
+// deploy hosts without editing this list.
+if (process.env.EXTRA_CORS_ORIGINS) {
+  for (const o of process.env.EXTRA_CORS_ORIGINS.split(",")) {
+    const trimmed = o.trim();
+    if (trimmed) allowedOrigins.push(trimmed);
+  }
+}
 
 // Use CORS middleware
 app.use(
@@ -44,7 +58,7 @@ app.use(
         callback(new Error("Not allowed by CORS"));
       }
     },
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     credentials: true,
   })
 );
