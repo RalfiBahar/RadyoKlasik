@@ -586,6 +586,100 @@ subscribe to `ws://<api>/ws/studio` for `studio:state`.
 - Integration (Playwright): login → upload track → it appears in library → add to queue → see it in NEXT panel → skip → nowplaying updates; go on air → ON AIR indicator lights.
 - Manual acceptance: side-by-side with the screenshots, confirm each control exists and works.
 
+### Status / decisions / gotchas (Phase 5)
+
+**Status: DONE (operator UI).** All work is on the single plan branch
+`feature/self-hosted-radio` in a **new separate Next.js app
+`RadyoKlasik/radyo-klasik-studio/`** (the recommended auth-isolated app, kept out
+of the public listener bundle). The three screenshots are reproduced: General
+Dashboard, Media Library / Upload, and the Virtual Studio centerpiece; Analytics
+and Scheduling/DJ-management are UI shells (Phase 6/7). Built across the three
+suggested windows (A scaffold+auth → B library → C studio), each committed +
+pushed separately. **Component/unit tests: 32/32 (Vitest)**, production `next
+build` green, and a full **live end-to-end** through the app's own proxy against
+the Docker stack (login → library → add to queue → queue reflects → skip →
+nowplaying → studio session start/stop, plus `/ws/studio` greeting + role guard
+401).
+
+**What landed**
+- **App**: Next.js **14.2.35** (App Router) + TypeScript + Tailwind. `npm run
+  dev` on **:3001**. REST/auth/media are **proxied via Next rewrites**
+  (`next.config.mjs`, `STUDIO_API_URL`) so the browser is same-origin (no CORS);
+  WebSockets connect **directly** via `NEXT_PUBLIC_WS_URL` (WS upgrades aren't
+  proxied). `.env.example` is the env contract; README documents per-page APIs.
+- **Auth & roles** (`src/lib/{auth,token,permissions}.ts(x)`): shared-secret →
+  `POST /auth/generate_token` → JWT in `localStorage`; role stored client-side
+  (see decision); `SectionGuard` + role-filtered sidebar enforce admin/dj/guest.
+- **API client** (`src/lib/api.ts`): typed wrappers for all Phase 1–4 endpoints;
+  `XMLHttpRequest` upload with progress; 401 clears auth.
+- **Dashboard** (`DashboardStats`): live `playout/status` + `nowplaying`
+  (listeners/source/uptime/now-playing), **read-only broadcast link settings**
+  card (password masked), listener-map + last-played stubbed for Phase 6.
+- **Media Library** (`library/*`): paginated table (artwork/title/artist/album/
+  duration/type/tags), type filter sidebar w/ live counts, debounced search, tag
+  filter, total size, sortable columns, bulk tag/delete, per-row edit/delete,
+  drag-drop **UploadModal** (multi-file, per-file progress, dedupe/error states).
+- **Virtual Studio** (`studio/*`): `StudioConsole` (ON AIR + clock top bar,
+  Lobby/Facebook stubs, WS-status badge, 3-col layout) driven by
+  `useStudioRealtime` (initial GETs + `/ws/studio` `queue:update`/`studio:state`
+  + polled status). `StudioPlayer`+`Waveform` (now-playing + `/tracks/:id/
+  waveform` peaks + elapsed/remaining), `LibraryBrowser` (+Add / play-next),
+  `QueuePanel` (HTML5 drag-reorder → `PATCH /queue/reorder`, remove, USER/BREAK
+  badges, live), `TransportControls` (skip + Autoplay/autopilot), `Monitor`
+  (LISTEN/Deck Out/volume on the public stream), `MicControl` (mic on/off →
+  `studio/session/start` + `getUserMedia` + `/ws/ingest` MediaRecorder Opus;
+  Autofeed = voiceover↔live; mic-gain/duck control frames; level meter).
+- **Analytics** (`AnalyticsCharts`) + **Scheduling/DJ** pages = labelled shells.
+
+**Decisions**
+- **Separate app, not `/studio` routes in `radyo-klasik-web`** (per the plan's
+  recommendation) for auth isolation + a small listener bundle. It lives **inside
+  the `RadyoKlasik/` repo** so it rides the same `feature/self-hosted-radio`
+  branch and ledger (rather than the listener repo's branch).
+- **Roles are client-side for now.** `generate_token` issues a JWT with an
+  **empty payload (no role claim)** — real role-based backend auth is Phase 7. So
+  the login screen picks a role and `permissions.ts` guards routes client-side.
+  When Phase 7 adds a `role` claim, read it from the JWT instead of the picker.
+- **Next rewrites for REST, direct WS.** Avoids CORS for REST/media without
+  touching the backend allowlist; WS can't be proxied by rewrites so it uses
+  `NEXT_PUBLIC_WS_URL`. (`app.js` CORS still lacks `localhost:3001`, which is
+  fine precisely because nothing hits it cross-origin.)
+- **Bumped Next 14.2.5 → 14.2.35** (the `next-14` patched dist-tag) to clear the
+  known 14.2.5 security advisory while staying on the requested Next 14 line.
+- **Mic ingest = `MediaRecorder` (webm/ogg Opus) → binary WS frames**, matching
+  the Phase 4 `ws/ingest.js` contract (ffmpeg auto-probes the container). Control
+  frames `{ mode, duckLevel, micGain }` go over the same socket.
+- **Vitest + Testing Library** (not Jest) — lighter for a TS/Next app. Mock
+  `@/lib/api` and `@/lib/mic` for component tests.
+
+**Gotchas (read before Phase 6/8)**
+- **Node 25 + jsdom localStorage clash.** Node 25's experimental Web Storage
+  collides with jsdom (`Cannot initialize local storage without a
+  --localstorage-file path`). Fixed by installing a deterministic in-memory
+  `localStorage` in `vitest.setup.ts` (version-independent — no
+  `--no-experimental-webstorage` flag needed).
+- **Dev-server file-watcher noise.** `next dev` may spam `Watchpack EMFILE: too
+  many open files` under tight FD limits; it's non-fatal (server still serves).
+  Raise `ulimit -n` to silence.
+- **Host port 8001 shadowing still applies** to anything the studio proxies to:
+  a stray local `node server.js` answers instead of the container. Verify the
+  API via `docker exec radyoklasik-api-1 curl -fsS localhost:8001/api/v1/health`.
+- **`/stream` GET is an infinite body** — never `curl` it without `--max-time`
+  (the Monitor uses an `<audio>` element, so this only bites manual testing).
+- **Phase 6 endpoints don't exist yet**: Dashboard listener-map/last-played and
+  the whole Analytics page are placeholders; wire them when Phase 6 lands. The
+  Dashboard `broadcast link` host/port are display-only env values
+  (`NEXT_PUBLIC_BROADCAST_*`) — point them at the real harbor/relay in deploy.
+- **Deploy contract**: set `STUDIO_API_URL=https://api.radyoklasik.online` and
+  `NEXT_PUBLIC_WS_URL=wss://api.radyoklasik.online`; the harbor used for external
+  encoders isn't host-published (Phase 4), so the broadcast card is informational
+  until/unless a public SOURCE relay is added (Phase 9).
+
+**Run it**: `cd RadyoKlasik/radyo-klasik-studio && cp .env.example .env.local &&
+npm install && npm run dev` → http://localhost:3001 (needs the Docker stack up).
+Log in with `dev-shared`. `npm test` for the component/unit suite; `npm run
+build` to typecheck/produce the production build.
+
 ---
 
 ## Phase 6 — Analytics & reporting
@@ -715,16 +809,16 @@ subscribe to `ws://<api>/ws/studio` for `studio:state`.
 ## RadioJar feature parity checklist (acceptance criteria)
 
 - [x] Continuous AutoDJ playout with crossfades and loudness normalization (Phase 2 ✅)
-- [x] Media library: songs, jingles, commercials, artists, albums, playlists, tags, search, paging, total size (Phase 1 ✅ backend/API; Phase 5 UI)
-- [x] Upload tracks (drag-drop + metadata + artwork + waveform) (Phase 1 ✅ ingest: metadata/artwork/waveform/loudness; Phase 5 drag-drop UI)
-- [x] Queue / request management: add, reorder, remove, skip, play-next (Phase 3 ✅ backend/API: request queue spliced ahead of AutoDJ, QueueItem mirror, /api/v1/queue + skip + autopilot, /ws/studio queue:update; Phase 5 UI)
-- [x] Virtual Studio: browser mic broadcasting, **voice-over ducking**, live takeover, monitoring, transport, autoplay/autofeed toggles (Phase 4 ✅ engine/ingest/control: input.harbor "/live", smooth_add voice-over ducking + full-takeover master-gain cut, ws/ingest browser→ffmpeg→harbor, liveSession state machine + /api/v1/studio/*, per-DJ mic prefs, live now-playing, studio:state over /ws/studio, auto-failback to AutoDJ on drop; Phase 5 studio UI)
+- [x] Media library: songs, jingles, commercials, artists, albums, playlists, tags, search, paging, total size (Phase 1 ✅ backend/API; Phase 5 ✅ UI: paginated table, type filters + counts, search, total size, bulk ops)
+- [x] Upload tracks (drag-drop + metadata + artwork + waveform) (Phase 1 ✅ ingest: metadata/artwork/waveform/loudness; Phase 5 ✅ drag-drop upload modal w/ per-file progress)
+- [x] Queue / request management: add, reorder, remove, skip, play-next (Phase 3 ✅ backend/API: request queue spliced ahead of AutoDJ, QueueItem mirror, /api/v1/queue + skip + autopilot, /ws/studio queue:update; Phase 5 ✅ UI: drag-reorder QueuePanel + LibraryBrowser add/play-next + live WS)
+- [x] Virtual Studio: browser mic broadcasting, **voice-over ducking**, live takeover, monitoring, transport, autoplay/autofeed toggles (Phase 4 ✅ engine/ingest/control: input.harbor "/live", smooth_add voice-over ducking + full-takeover master-gain cut, ws/ingest browser→ffmpeg→harbor, liveSession state machine + /api/v1/studio/*, per-DJ mic prefs, live now-playing, studio:state over /ws/studio, auto-failback to AutoDJ on drop; Phase 5 ✅ studio UI: ON AIR + clock, Autofeed voiceover/live, LISTEN monitor, now-playing card + waveform, transport, library browser + queue, mic on/off → session/start + /ws/ingest capture, level meter)
 - [x] Dead-air failover / cloud automation (Phase 2 ✅ rotation-source failover → emergency playlist + mksafe, no dead air; live-DJ disconnect handoff in Phase 4)
 - [ ] DJ & shows management: roles, access control, guest DJs, per-DJ mic prefs, show/episode profiles, collaborative shows (Phase 7)
 - [ ] Scheduling / autopilots / breaks (Phase 7)
 - [ ] Analytics: listeners, sessions, listening time, GB, regional map, hourly, device, track reports, monthly, export (Phase 6)
 - [ ] Multiple stream outputs / encodings + scaling + stream protection (Phase 9)
-- [ ] Broadcast link settings surfaced (host/port/mount/credentials) (Phase 5)
+- [x] Broadcast link settings surfaced (host/port/mount/credentials) (Phase 5 ✅ read-only Dashboard card; source password masked)
 - [ ] Public listener web + mobile fully on self-hosted stream + nowplaying (Phase 8)
 - [ ] Recording of the live stream preserved (Phase 8)
 
