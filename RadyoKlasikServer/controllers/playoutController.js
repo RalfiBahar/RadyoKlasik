@@ -5,6 +5,7 @@ const rotation = require("../services/rotation");
 const nowPlaying = require("../services/nowPlaying");
 const autopilot = require("../services/autopilot");
 const queueSync = require("../services/queueSync");
+const liveSession = require("../services/liveSession");
 const { replaygainToLinear, annotateUri } = require("../services/playoutUri");
 const logger = require("../logger");
 
@@ -74,7 +75,18 @@ exports.metadata = async (req, res) => {
       }
     }
 
-    const np = nowPlaying.set({ title, artist, album, thumb, source, trackId });
+    // While a live DJ is on air, the public now-playing reflects the LIVE show,
+    // not the music bed playing underneath (voice-over) — so don't let an
+    // autodj/request on_track clobber it. We still record PlayHistory for the
+    // underlying track (analytics / track reports).
+    let np = nowPlaying.get();
+    if (liveSession.isOnAir() && source !== "live") {
+      // Hold the public now-playing on the live show, but remember the music
+      // bed track so a live drop can restore it instantly (Phase 4 failback).
+      nowPlaying.setShadow({ title, artist, album, thumb, source, trackId });
+    } else {
+      np = nowPlaying.set({ title, artist, album, thumb, source, trackId });
+    }
 
     await PlayHistory.create({ trackId, source, startedAt: new Date() });
     if (trackId) {
@@ -99,6 +111,28 @@ exports.metadata = async (req, res) => {
     return res.json({ ok: true, nowPlaying: np });
   } catch (err) {
     logger.error("playout/metadata failed", { error: String(err) });
+    return res.status(500).json({ error: String(err) });
+  }
+};
+
+// POST /api/v1/playout/harbor  (internal; called by Liquidsoap on_connect /
+// on_disconnect of the live input.harbor). The authoritative signal that the
+// live mic SOURCE is actually flowing, so the API can flip onAir, drive the
+// live now-playing, and schedule auto-failback on disconnect.
+exports.harbor = async (req, res) => {
+  try {
+    const event = (req.body && req.body.event) || null;
+    if (event === "connect") {
+      const state = await liveSession.onHarborConnected();
+      return res.json({ ok: true, state });
+    }
+    if (event === "disconnect") {
+      const state = liveSession.onHarborDisconnected();
+      return res.json({ ok: true, state });
+    }
+    return res.status(400).json({ error: "event must be connect|disconnect" });
+  } catch (err) {
+    logger.error("playout/harbor failed", { error: String(err) });
     return res.status(500).json({ error: String(err) });
   }
 };
