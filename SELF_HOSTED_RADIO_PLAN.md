@@ -428,6 +428,132 @@ flowchart LR
 - Integration: connect a synthetic Opus source → `/live` overrides AutoDJ within crossfade window; disconnect → AutoDJ resumes < timeout with no dead air; voice-over mode ducks music to target dB then restores; nowplaying reflects live show.
 - Manual acceptance: talk into the mic on the studio page, hear music duck under voice and restore; switch to full-live and back; pull the network and confirm AutoDJ saves the air.
 
+### Status / decisions / gotchas (Phase 4)
+
+**Status: DONE (engine + ingest + control plane).** All work is on the single
+plan branch `feature/self-hosted-radio`. The live DJ pipeline is implemented
+end-to-end: browser-style Opus over WS → Node ffmpeg → Liquidsoap
+`input.harbor` "/live", spliced into the air via `smooth_add` with voice-over
+ducking + full-takeover, a `liveSession` state machine + `/api/v1/studio/*`
+endpoints, per-DJ mic prefs applied at connect, live now-playing, `studio:state`
+events over the EXISTING `/ws/studio`, and resilient auto-failback to AutoDJ on
+disconnect. Verified for real against the Docker Compose stack. Tests: **92/92
+passing** (Phase 3's 65 + 27 new: `liveSession` unit + `studio.integration`).
+The studio *UI* (mic capture, monitor/LISTEN, waveform, Autofeed toggle) is
+Phase 5.
+
+**What landed**
+- **`infra/liquidsoap/radio.liq`** (Phase 4 additions): an `input.harbor`
+  (`id="live"`, mount `/live`, dedicated SOURCE password, `timeout`, `buffer=2.`)
+  on a port that lives on the private `radyonet` only (NOT published to the
+  host). Three telnet-settable `interactive.float`s drive the live behavior with
+  no script reload: `live_music_gain` (master music gain — 1.0 voice-over/idle,
+  **0.0 full takeover**), `live_duck` (the `smooth_add` `p` = voice-over duck
+  level), `live_mic_gain` (per-DJ input gain on the mic). The air is
+  `radio = smooth_add(duration=live_fade, p={live_duck()}, normal=music, special=live)`
+  where `music = amplify({live_music_gain()}, fallback([program, emergency]))`.
+  `smooth_add` is the talkover operator: it auto-ducks `normal` to `p` while the
+  mic (`special`) has audio and restores it when silent — RadioJar's auto
+  compressor behavior. The harbor `on_connect`/`on_disconnect` POST to
+  `/api/v1/playout/harbor` (the authoritative "audio is flowing" signal), and
+  `on_disconnect` **resets `live_music_gain` to 1.0 in-process** so a dropped
+  studio never leaves dead air, even mid full-takeover. `rms(id="live_rms")` +
+  a registered `studio.level` telnet command expose the mic RMS (0..1) for
+  metering.
+- **`ws/ingest.js`** (NEW transport): a `ws` server at `/ws/ingest` (`noServer`
+  + path-scoped upgrade) that authenticates the studio JWT (`?token=`) + the
+  session reservation (`?session=`), spawns ffmpeg (`pipe:0` → MP3 →
+  `icecast://…@liquidsoap:<harbor>/live`), pipes binary WS frames to ffmpeg
+  stdin, and applies JSON control frames (`{ mode, duckLevel, micGain }`) to the
+  session.
+- **`services/liveSession.js`**: the idle→live→voiceover→idle state machine +
+  Liquidsoap control plane. Pure helpers (`transition`, `duckGain`,
+  `normalizePrefs`, `modeVars`) are unit-tested; the stateful singleton reserves
+  the mount, loads `User.micPreferencesJson`, pushes `var.set` for the mode,
+  drives live now-playing, schedules the configurable auto-failback, and
+  broadcasts `studio:state`.
+- **`controllers/studioController.js` + `routes/studioRoutes.js`**:
+  `POST /api/v1/studio/session/start` (returns `{ sessionId, mode, ingest:{ path,
+  mount, query:{session} } }`), `/session/stop`, `/session/mode`, `GET /session`
+  (JWT-protected).
+- **`controllers/playoutController.js`**: new internal `POST /api/v1/playout/harbor`
+  ({event:"connect"|"disconnect"}); the metadata hook now **holds public
+  now-playing on the live show while on air** (so an autodj/request `on_track`
+  underneath can't clobber it) while stashing the music-bed track as a shadow,
+  and `services/nowPlaying.js` gained `setShadow`/`promoteShadow` so a live drop
+  restores the underlying AutoDJ track instantly.
+- **`ws/studioSocket.js`**: refactored to `noServer` + a path-scoped upgrade
+  listener (non-destructive for other paths) so `/ws/studio` and `/ws/ingest`
+  coexist on one HTTP server; REUSED for the new `studio:state` events (no second
+  state channel). `server.js` wires both.
+- **`infra/docker-compose.yml` + `.env.example`**: `LIVE_HARBOR_*`,
+  `LIVE_FALLBACK_TIMEOUT_MS`, `LIVE_DUCK_LEVEL`, `LIVE_SILENCE_THRESHOLD`,
+  `LIVE_FADE_DURATION`. The harbor port is `expose`d on `radyonet` only.
+
+**Live verification (against the Docker Compose stack)**
+- Synthetic Opus (ffmpeg sine → libopus/ogg) streamed into `/ws/ingest` → the
+  container's ingest ffmpeg connected as a SOURCE (`live.status: source client
+  connected`); `studio.level` metered ≈ `0.059` (above the 0.05 duck threshold),
+  buffer filled to ~1.9s — so voice-over ducking engages.
+- Voice-over kept `live_music_gain = 1.0`; a WS control frame `{mode:"live"}`
+  switched to full takeover → `live_music_gain = 0.0`.
+- Dropping the studio → harbor `on_disconnect` reset `live_music_gain` to `1.0`
+  instantly; `GET /stream` stayed `200 audio/mpeg` (no dead air); the API failed
+  back to idle after the 8 s window. Now-playing reflected the live show
+  (`title`/`artist` = show/DJ) while on air.
+
+**Decisions**
+- **`smooth_add` for voice-over, master-gain cut for full takeover.** Liquidsoap
+  2.2.5's `smooth_add(normal, special, p)` IS the talkover/auto-duck operator
+  (it tracks the special's volume and fades the normal to `p`). Full takeover
+  ("mic replaces music") can't be `p=0` alone (music would return during mic
+  silence), so a separate master `amplify({live_music_gain()})` gates the music
+  to 0 for takeover. Single consumption of the `live` source (one `smooth_add`)
+  avoids the clock/double-pull pitfalls of feeding a harbor into two operators.
+- **Ingest transport = browser→WS Opus→Node ffmpeg→harbor (the plan's
+  recommended v1)** rather than in-Liquidsoap WHIP/SRT — keeps the browser
+  contract simple and reuses the existing `ws` dependency (no new deps, so the
+  api image only needs a rebuild to bake the new *source*, not new modules).
+- **Failback is belt-and-suspenders.** The harbor `on_disconnect` restores the
+  music gain locally (instant, API-independent); the API additionally schedules
+  a `LIVE_FALLBACK_TIMEOUT_MS` teardown to idle and promotes the shadow
+  now-playing. `smooth_add`'s `normal=music` (emergency-backed) means the air is
+  never silent regardless.
+- **Now-playing while live is API-owned**, not driven by a live `on_track` (a
+  mic has no track marks): `liveSession` sets it on harbor-connect and the
+  metadata hook is suppressed-but-shadowed during the broadcast.
+
+**Gotchas (read before Phase 5)**
+- **`null` is a function in Liquidsoap** — `amplify(override=null, …)` fails
+  `--check`; use `override=null()`. **`smooth_add` has no `id=` argument.** Probe
+  unknown operator signatures with `docker exec … liquidsoap -h <op>` and always
+  `liquidsoap --check` before restart (the container restart-loops on a bad
+  script).
+- **Interactive vars are set over telnet as `var.set <name> = <value>`** (read
+  with `var.get`, list with `var.list`). The API formats floats to 4 dp.
+- **The harbor port stays on `radyonet`** (not host-published); the api reaches
+  `liquidsoap:8005` for the ingest ffmpeg. `LIVE_HARBOR_PASSWORD` is a required
+  env (`:?`) — add it to `infra/.env` (dev value `dev-live-source`) or compose
+  up fails.
+- **`/ws/studio` + `/ws/ingest` coexist only because both use `noServer` +
+  path-scoped, non-destructive upgrade listeners.** A `WebSocketServer({server,
+  path})` aborts non-matching upgrades, which would break the second socket —
+  don't revert to that form.
+- **Live now-playing reverts to AutoDJ at the next track boundary** if no music
+  metadata was captured during a very short session (the shadow is empty); in
+  practice an autodj `on_track` fires within a track length and populates it. The
+  deterministic shadow-promotion is covered by the jest integration suite.
+- **Tests still run in the Node 20 container on the compose network.** No new npm
+  deps were added, but the api image must be rebuilt (`docker compose up -d
+  --build api`) before live verification because the running container uses baked
+  source (not the host mount the test run uses). Baseline is now **92/92**.
+
+**Run it**: `cd RadyoKlasik/infra && cp .env.example .env && docker compose up
+--build`. `POST /auth/generate_token` → JWT, then `POST /api/v1/studio/session/start`
+→ open `ws://<api>/ws/ingest?token=<jwt>&session=<id>` and stream Opus frames
+(send `{mode:"live"|"voiceover", duckLevel, micGain}` JSON frames to control);
+subscribe to `ws://<api>/ws/studio` for `studio:state`.
+
 ---
 
 ## Phase 5 — DJ host dashboard / panel (Next.js)
@@ -592,7 +718,7 @@ flowchart LR
 - [x] Media library: songs, jingles, commercials, artists, albums, playlists, tags, search, paging, total size (Phase 1 ✅ backend/API; Phase 5 UI)
 - [x] Upload tracks (drag-drop + metadata + artwork + waveform) (Phase 1 ✅ ingest: metadata/artwork/waveform/loudness; Phase 5 drag-drop UI)
 - [x] Queue / request management: add, reorder, remove, skip, play-next (Phase 3 ✅ backend/API: request queue spliced ahead of AutoDJ, QueueItem mirror, /api/v1/queue + skip + autopilot, /ws/studio queue:update; Phase 5 UI)
-- [ ] Virtual Studio: browser mic broadcasting, **voice-over ducking**, live takeover, monitoring, transport, autoplay/autofeed toggles (Phase 4, 5)
+- [x] Virtual Studio: browser mic broadcasting, **voice-over ducking**, live takeover, monitoring, transport, autoplay/autofeed toggles (Phase 4 ✅ engine/ingest/control: input.harbor "/live", smooth_add voice-over ducking + full-takeover master-gain cut, ws/ingest browser→ffmpeg→harbor, liveSession state machine + /api/v1/studio/*, per-DJ mic prefs, live now-playing, studio:state over /ws/studio, auto-failback to AutoDJ on drop; Phase 5 studio UI)
 - [x] Dead-air failover / cloud automation (Phase 2 ✅ rotation-source failover → emergency playlist + mksafe, no dead air; live-DJ disconnect handoff in Phase 4)
 - [ ] DJ & shows management: roles, access control, guest DJs, per-DJ mic prefs, show/episode profiles, collaborative shows (Phase 7)
 - [ ] Scheduling / autopilots / breaks (Phase 7)
