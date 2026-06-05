@@ -1,15 +1,14 @@
 "use client";
 
 import { SectionGuard } from "@/components/AppShell";
-import { PageHeader, ComingSoon } from "@/components/ui";
+import { PageHeader } from "@/components/ui";
+import LibraryView from "@/components/library/LibraryView";
 
 export default function LibraryPage() {
   return (
     <SectionGuard section="library">
       <PageHeader title="Media Library" subtitle="Songs, jingles & commercials" />
-      <div className="p-6">
-        <ComingSoon feature="Media library table & upload" phase="Phase 5 — Window B" />
-      </div>
+      <LibraryView />
     </SectionGuard>
   );
 }
