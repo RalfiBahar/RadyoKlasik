@@ -87,4 +87,13 @@ describe("rotation.chooseNext", () => {
     expect(a.item.id).not.toBe(b.item.id);
     expect(rotation.getState().lastSongId).toBe(b.item.id);
   });
+
+  test("preview() shows upcoming items without mutating runtime state", () => {
+    rotation.setState({ songsSinceJingle: 0, lastSongId: "s1", lastJingleId: null });
+    const before = rotation.getState();
+    const upcoming = rotation.preview({ songs, jingles: [] }, 3);
+    expect(upcoming).toHaveLength(3);
+    expect(upcoming[0].item.id).not.toBe("s1");
+    expect(rotation.getState()).toEqual(before);
+  });
 });

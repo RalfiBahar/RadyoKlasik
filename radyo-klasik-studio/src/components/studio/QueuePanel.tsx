@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { removeFromQueue, reorderQueue } from "@/lib/api";
-import type { QueueItem } from "@/lib/types";
+import type { AutoDjQueueItem, QueueItem } from "@/lib/types";
 import { reorder } from "@/lib/array";
 import { formatDuration } from "@/lib/format";
 import { Badge } from "@/components/ui";
@@ -12,9 +12,13 @@ import { Badge } from "@/components/ui";
 // /ws/studio queue:update events flowing through the parent.
 export default function QueuePanel({
   items,
+  autodjItems = [],
+  autopilot = false,
   onChanged,
 }: {
   items: QueueItem[];
+  autodjItems?: AutoDjQueueItem[];
+  autopilot?: boolean;
   onChanged?: () => void;
 }) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -46,7 +50,7 @@ export default function QueuePanel({
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-ink-700 p-3">
         <div className="text-xs font-semibold uppercase text-slate-400">
-          Next ({items.length})
+          Next ({items.length + (autopilot ? autodjItems.length : 0)})
         </div>
         {busy && <span className="text-xs text-slate-500">Saving…</span>}
       </div>
@@ -91,9 +95,38 @@ export default function QueuePanel({
             </button>
           </li>
         ))}
-        {items.length === 0 && (
+        {autopilot && autodjItems.length > 0 && (
+          <>
+            <li className="border-b border-ink-800 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              AutoDJ rotation
+            </li>
+            {autodjItems.map((item) => (
+              <li
+                key={item.id}
+                data-testid={`autodj-item-${item.id}`}
+                className="flex items-center gap-2 border-b border-ink-800 px-3 py-2"
+              >
+                <span className="text-slate-600" aria-hidden>
+                  ♫
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm text-slate-100">
+                    {item.track?.title || "Unknown track"}
+                  </div>
+                  <div className="truncate text-xs text-slate-500">
+                    {item.track?.artist || "—"} · {formatDuration(item.track?.duration)}
+                  </div>
+                </div>
+                <Badge tone={item.kind === "jingle" ? "amber" : "green"}>AUTO</Badge>
+              </li>
+            ))}
+          </>
+        )}
+        {items.length === 0 && (!autopilot || autodjItems.length === 0) && (
           <li className="px-3 py-6 text-center text-sm text-slate-500">
-            Queue is empty — AutoDJ rotation is playing.
+            {autopilot
+              ? "Queue is empty — AutoDJ rotation is loading."
+              : "Queue is empty — AutoDJ is off."}
           </li>
         )}
       </ul>

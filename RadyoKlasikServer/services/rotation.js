@@ -100,10 +100,31 @@ function advance(pools, jingleEvery = DEFAULT_JINGLE_EVERY) {
   return result;
 }
 
+// Preview upcoming AutoDJ selections without mutating the live runtime state.
+// Liquidsoap still owns actual playout by calling /api/v1/playout/next one item
+// at a time; this is just for the Studio NEXT panel.
+function preview(
+  pools,
+  count = 6,
+  jingleEvery = DEFAULT_JINGLE_EVERY,
+  startState = runtimeState
+) {
+  const out = [];
+  let state = { ...freshState(), ...startState };
+  for (let i = 0; i < count; i += 1) {
+    const result = chooseNext(state, pools, jingleEvery);
+    if (!result.item) break;
+    out.push({ item: result.item, kind: result.kind });
+    state = result.state;
+  }
+  return out;
+}
+
 module.exports = {
   chooseNext,
   pickAvoiding,
   advance,
+  preview,
   getState,
   setState,
   resetState,

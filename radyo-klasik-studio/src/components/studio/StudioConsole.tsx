@@ -132,7 +132,12 @@ export default function StudioConsole() {
 
         {/* Right: queue panel */}
         <aside className="w-80 shrink-0 border-l border-ink-700 bg-ink-800/40">
-          <QueuePanel items={queue?.items ?? []} onChanged={onQueueChanged} />
+          <QueuePanel
+            items={queue?.items ?? []}
+            autodjItems={queue?.autodj?.items ?? []}
+            autopilot={queue?.autodj?.enabled ?? !!status?.autopilot}
+            onChanged={onQueueChanged}
+          />
         </aside>
       </div>
     </div>

@@ -3,6 +3,8 @@ const liquidsoap = require("./liquidsoapClient");
 const { annotateUri } = require("./playoutUri");
 const nowPlaying = require("./nowPlaying");
 const icecastStatus = require("./icecastStatus");
+const autopilot = require("./autopilot");
+const rotation = require("./rotation");
 const studioSocket = require("../ws/studioSocket");
 const logger = require("../logger");
 
@@ -49,6 +51,16 @@ function serializeItem(item) {
     status: item.status,
     position: item.position,
     addedAt: item.createdAt,
+  };
+}
+
+function serializeAutodjPreview(entry, index) {
+  return {
+    id: `autodj-${entry.item.id}-${index}`,
+    source: "autodj",
+    kind: entry.kind,
+    track: serializeTrack(entry.item),
+    position: index,
   };
 }
 
@@ -157,6 +169,41 @@ async function getState() {
       });
     }
   }
+
+  let autodjItems = [];
+  if (autopilot.isEnabled()) {
+    try {
+      const attributes = [
+        "id",
+        "title",
+        "artist",
+        "album",
+        "type",
+        "duration",
+        "artworkPath",
+      ];
+      const [songs, jingles] = await Promise.all([
+        Track.findAll({ where: { type: "song" }, attributes }),
+        Track.findAll({ where: { type: "jingle" }, attributes }),
+      ]);
+      const previewState = np?.trackId
+        ? { ...rotation.getState(), lastSongId: np.trackId }
+        : rotation.getState();
+      autodjItems = rotation
+        .preview(
+          { songs, jingles },
+          Number(process.env.AUTODJ_PREVIEW_COUNT || 8),
+          undefined,
+          previewState
+        )
+        .map(serializeAutodjPreview);
+    } catch (err) {
+      logger.warn("queueSync.getState: AutoDJ preview failed", {
+        error: String(err),
+      });
+    }
+  }
+
   return {
     nowPlaying: np
       ? {
@@ -170,6 +217,10 @@ async function getState() {
         }
       : null,
     items: items.map(serializeItem),
+    autodj: {
+      enabled: autopilot.isEnabled(),
+      items: autodjItems,
+    },
   };
 }
 
@@ -185,6 +236,7 @@ module.exports = {
   OUTPUT_ID,
   serializeItem,
   serializeTrack,
+  serializeAutodjPreview,
   itemUri,
   pendingItems,
   pushItem,

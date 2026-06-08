@@ -60,6 +60,14 @@ export interface QueueItem {
   addedAt: string;
 }
 
+export interface AutoDjQueueItem {
+  id: string;
+  source: "autodj";
+  kind: "song" | "jingle" | null;
+  track: Track | null;
+  position: number;
+}
+
 export interface NowPlaying {
   trackId: string | null;
   title: string | null;
@@ -73,6 +81,10 @@ export interface NowPlaying {
 export interface QueueState {
   nowPlaying: NowPlaying | null;
   items: QueueItem[];
+  autodj?: {
+    enabled: boolean;
+    items: AutoDjQueueItem[];
+  };
 }
 
 export interface PlayoutStatus {

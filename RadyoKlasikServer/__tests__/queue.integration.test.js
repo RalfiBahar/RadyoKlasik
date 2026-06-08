@@ -105,6 +105,30 @@ describe("auth", () => {
   });
 });
 
+describe("GET /api/v1/queue", () => {
+  test("includes AutoDJ preview items when autopilot is on", async () => {
+    const res = await request(app)
+      .get("/api/v1/queue")
+      .set("Authorization", AUTH);
+    expect(res.status).toBe(200);
+    expect(res.body.autodj.enabled).toBe(true);
+    expect(res.body.autodj.items.length).toBeGreaterThan(0);
+    expect(res.body.autodj.items[0]).toMatchObject({
+      source: "autodj",
+      track: expect.objectContaining({ title: expect.any(String) }),
+    });
+  });
+
+  test("omits AutoDJ preview items when autopilot is off", async () => {
+    autopilot.set(false);
+    const res = await request(app)
+      .get("/api/v1/queue")
+      .set("Authorization", AUTH);
+    expect(res.status).toBe(200);
+    expect(res.body.autodj).toEqual({ enabled: false, items: [] });
+  });
+});
+
 describe("POST /api/v1/queue (add + order)", () => {
   test("adds 3 tracks that queue in order ahead of rotation", async () => {
     for (const t of [trackA, trackB, trackC]) {
