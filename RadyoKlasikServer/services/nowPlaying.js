@@ -7,6 +7,12 @@
 // shows empty metadata until the next `on_track`. (No new migration needed.)
 
 let current = null;
+// Dead-air flag: true while Liquidsoap reports the music bed is genuinely
+// silent (autopilot off + empty queue + no live). When set, get() reports no
+// now-playing so the studio deck / public player show nothing — but `current`
+// is preserved so a transient dip (on_noise) can restore it without a track
+// change. A real track (set) or a restart clears it.
+let silent = false;
 // Latest non-live (autodj/request) metadata seen while a live DJ is on air. The
 // public now-playing shows the live show during a broadcast, but the music bed
 // keeps advancing underneath; we stash it here so a live drop can instantly
@@ -28,11 +34,22 @@ function normalize(meta = {}) {
 
 function set(meta = {}) {
   current = normalize(meta);
+  silent = false; // real audio with metadata is on air
   return current;
 }
 
 function get() {
-  return current;
+  return silent ? null : current;
+}
+
+// Flag/unflag dead air. Returns the effective now-playing after the change.
+function setSilent(value) {
+  silent = !!value;
+  return get();
+}
+
+function isSilent() {
+  return silent;
 }
 
 // Remember the underlying music track while the public now-playing is held on
@@ -49,12 +66,14 @@ function promoteShadow() {
     current = shadow;
     shadow = null;
   }
-  return current;
+  silent = false;
+  return get();
 }
 
 function clear() {
   current = null;
   shadow = null;
+  silent = false;
 }
 
-module.exports = { set, get, setShadow, promoteShadow, clear };
+module.exports = { set, get, setSilent, isSilent, setShadow, promoteShadow, clear };

@@ -9,6 +9,7 @@ const router = express.Router();
 router.get("/next", internalOnly, playout.next);
 router.post("/metadata", internalOnly, playout.metadata);
 router.post("/harbor", internalOnly, playout.harbor);
+router.post("/airstate", internalOnly, playout.airstate);
 
 // Operator status (JWT-protected).
 router.get("/status", tokenRequired, playout.status);

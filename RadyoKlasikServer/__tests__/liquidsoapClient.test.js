@@ -68,6 +68,21 @@ describe("liquidsoapClient", () => {
     }
   });
 
+  test("setVar() formats interactive variable assignments", async () => {
+    const { server, port, received } = await makeFakeTelnet(() => "Done.");
+    try {
+      await client.setVar("autopilot_on", false, { host: "127.0.0.1", port });
+      await client.setVar("station_name", "Radyo Klasik", {
+        host: "127.0.0.1",
+        port,
+      });
+      expect(received).toContain("var.set autopilot_on = false");
+      expect(received).toContain('var.set station_name = "Radyo Klasik"');
+    } finally {
+      server.close();
+    }
+  });
+
   test("reachable() returns true when the server answers", async () => {
     const { server, port } = await makeFakeTelnet(() => "2.2.5");
     try {

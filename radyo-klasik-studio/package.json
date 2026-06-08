@@ -4,7 +4,7 @@
   "private": true,
   "description": "Radyo Klasik self-hosted DJ host dashboard / Virtual Studio (Phase 5).",
   "scripts": {
-    "dev": "next dev -p 3001",
+    "dev": "WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true next dev -p 3001",
     "build": "next build",
     "start": "next start -p 3001",
     "lint": "next lint",

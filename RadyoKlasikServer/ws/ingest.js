@@ -80,12 +80,20 @@ function spawnEncoder() {
   const args = [
     "-hide_banner",
     "-loglevel", "warning",
+    // Low-latency input: don't accumulate an input buffer and decode with
+    // minimal delay (Phase A — tighten/stabilize mic-to-air latency).
     "-fflags", "+nobuffer",
+    "-flags", "low_delay",
     "-i", "pipe:0",
     "-ac", "2",
     "-ar", "44100",
     "-c:a", "libmp3lame",
     "-b:a", "128k",
+    // Disable the LAME bit reservoir so frames don't depend on future audio
+    // (removes a few hundred ms of inter-frame latency) and flush every packet
+    // to the harbor immediately instead of letting the muxer buffer.
+    "-reservoir", "0",
+    "-flush_packets", "1",
     "-content_type", "audio/mpeg",
     "-f", "mp3",
     harborUrl(),

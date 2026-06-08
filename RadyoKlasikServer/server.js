@@ -2,6 +2,7 @@ const http = require("http");
 const app = require("./app");
 const studioSocket = require("./ws/studioSocket");
 const ingest = require("./ws/ingest");
+const autopilot = require("./services/autopilot");
 
 const PORT = process.env.PORT || 8001;
 
@@ -16,4 +17,8 @@ ingest.init(server);
 
 server.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
+  // Push the current autopilot flag into Liquidsoap so the emergency-failover
+  // gate matches the API on boot (e.g. AUTOPILOT_DEFAULT=false or a Liquidsoap
+  // restart). Best-effort with retries; never blocks startup.
+  autopilot.syncToLiquidsoapWithRetry().catch(() => {});
 });

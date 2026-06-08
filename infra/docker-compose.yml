@@ -67,6 +67,8 @@ services:
       LIVE_HARBOR_USER: ${LIVE_HARBOR_USER:-source}
       LIVE_HARBOR_PASSWORD: ${LIVE_HARBOR_PASSWORD:?set LIVE_HARBOR_PASSWORD in infra/.env}
       LIVE_HARBOR_TIMEOUT: ${LIVE_HARBOR_TIMEOUT:-10.0}
+      # Phase A: harbor prebuffer = dominant mic-to-air latency knob (seconds).
+      LIVE_HARBOR_BUFFER: ${LIVE_HARBOR_BUFFER:-0.5}
       LIVE_DUCK_LEVEL: ${LIVE_DUCK_LEVEL:-0.25}
       LIVE_FADE_DURATION: ${LIVE_FADE_DURATION:-0.8}
       # Bundled clips used only for the emergency dead-air fallback.

@@ -32,9 +32,13 @@ export default function StudioConsole() {
   }, []);
 
   const onAir = !!studio?.onAir || status?.source === "live";
-  const nowPlaying =
-    queue?.nowPlaying ??
-    (status?.currentTrack
+  // Once the queue has loaded, its now-playing is authoritative (pushed live via
+  // queue:update on every track change AND on dead-air). A null there means the
+  // deck is genuinely empty (off-air silence), so don't fall back to the slower
+  // 5s status poll — that's only a bootstrap before the first queue load.
+  const nowPlaying = queue
+    ? queue.nowPlaying
+    : status?.currentTrack
       ? {
           trackId: status.currentTrack.trackId,
           title: status.currentTrack.title,
@@ -44,7 +48,7 @@ export default function StudioConsole() {
           source: status.source,
           startedAt: status.currentTrack.startedAt ?? null,
         }
-      : null);
+      : null;
 
   const onQueueChanged = () => refreshQueue();
 

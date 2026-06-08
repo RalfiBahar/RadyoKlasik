@@ -47,7 +47,9 @@ export function connectIngest(opts: {
   onClose?: () => void;
   onError?: (err: Event) => void;
 }): IngestControl {
-  const { token, sessionId, stream, timesliceMs = 250 } = opts;
+  // 120 ms chunks (Phase A): small enough to keep mic-to-air latency tight,
+  // large enough to avoid excessive WS/encoder churn and webm fragmentation.
+  const { token, sessionId, stream, timesliceMs = 120 } = opts;
   const ws = new WebSocket(ingestSocketUrl(token, sessionId));
   ws.binaryType = "arraybuffer";
 

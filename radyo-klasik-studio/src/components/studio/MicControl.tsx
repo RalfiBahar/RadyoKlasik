@@ -30,6 +30,7 @@ export default function MicControl({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ingestRef = useRef<IngestControl | null>(null);
+  const stoppingRef = useRef(false);
 
   // Keep the local mode mirror in sync with server-pushed studio:state.
   useEffect(() => {
@@ -51,30 +52,55 @@ export default function MicControl({
     }
     setBusy(true);
     setError(null);
+    let sessionReserved = false;
     try {
       const session = await startStudioSession({ mode });
+      sessionReserved = true;
       const stream = await captureMic();
       ingestRef.current = connectIngest({
         token,
         sessionId: session.sessionId,
         stream,
-        onError: () => setError("Ingest connection error"),
+        onOpen: () => {
+          ingestRef.current?.sendControl({ mode, micGain, duckLevel });
+        },
+        onClose: () => {
+          if (!stoppingRef.current) {
+            setError("Ingest connection closed");
+            void stopMic({ preserveError: true });
+          }
+        },
+        onError: () => {
+          if (!stoppingRef.current) {
+            setError("Ingest connection error");
+            void stopMic({ preserveError: true });
+          }
+        },
       });
-      // Apply current gain/duck once connected.
-      ingestRef.current.sendControl({ mode, micGain, duckLevel });
       onChanged?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to go live");
+      stoppingRef.current = true;
       ingestRef.current?.close();
       ingestRef.current = null;
+      if (sessionReserved) {
+        try {
+          await stopStudioSession();
+          onChanged?.();
+        } catch {
+          // Best-effort cleanup; surface the original startup failure.
+        }
+      }
+      stoppingRef.current = false;
     } finally {
       setBusy(false);
     }
   };
 
-  const stopMic = async () => {
+  const stopMic = async ({ preserveError = false }: { preserveError?: boolean } = {}) => {
     setBusy(true);
-    setError(null);
+    if (!preserveError) setError(null);
+    stoppingRef.current = true;
     try {
       ingestRef.current?.close();
       ingestRef.current = null;
@@ -83,6 +109,7 @@ export default function MicControl({
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to stop");
     } finally {
+      stoppingRef.current = false;
       setBusy(false);
     }
   };

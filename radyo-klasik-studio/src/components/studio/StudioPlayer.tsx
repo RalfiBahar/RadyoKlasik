@@ -23,6 +23,9 @@ export default function StudioPlayer({
   const live = source === "live" || onAir;
   const trackId = nowPlaying?.trackId ?? null;
 
+  // Estimated mic-to-air latency (Phase A) for the talk-over cue marker.
+  const airLatencyMs = Number(process.env.NEXT_PUBLIC_AIR_LATENCY_MS ?? 900);
+
   // Fetch the track duration when the on-air track changes.
   useEffect(() => {
     let active = true;
@@ -55,6 +58,12 @@ export default function StudioPlayer({
 
   const progress = duration ? Math.min(1, elapsed / duration) : 0;
   const remaining = duration ? Math.max(0, duration - elapsed) : null;
+  // Talk-over cue: where a word spoken NOW lands on the track, offset ahead of
+  // the playhead by the mic-to-air latency. Only meaningful over a known track.
+  const cue =
+    trackId && duration && duration > 0
+      ? Math.min(0.999, progress + airLatencyMs / 1000 / duration)
+      : null;
 
   return (
     <div className="card">
@@ -71,8 +80,10 @@ export default function StudioPlayer({
           <div className="flex items-center gap-2">
             {live ? (
               <Badge tone="red">● ON AIR · LIVE</Badge>
-            ) : (
+            ) : nowPlaying ? (
               <Badge tone="brand">{source || "autodj"}</Badge>
+            ) : (
+              <Badge tone="neutral">OFF AIR · SILENT</Badge>
             )}
           </div>
           <div className="mt-1 truncate text-xl font-bold text-slate-100">
@@ -92,11 +103,23 @@ export default function StudioPlayer({
       </div>
 
       <div className="mt-4">
-        <Waveform trackId={trackId} progress={progress} live={live && !trackId} />
+        <Waveform
+          trackId={trackId}
+          progress={progress}
+          live={live && !trackId}
+          cue={cue}
+        />
         <div className="mt-1 flex justify-between text-xs tabular-nums text-slate-500">
           <span>{formatDuration(elapsed)}</span>
           <span>{duration ? formatDuration(duration) : "--:--"}</span>
         </div>
+        {cue != null && (
+          <div className="mt-1 flex items-center gap-1.5 text-[11px] text-amber-400/80">
+            <span className="inline-block h-2 w-[2px] bg-amber-400/90" />
+            Mic→air ≈ {(airLatencyMs / 1000).toFixed(1)}s — speak when the marker
+            reaches the beat you want to hit.
+          </div>
+        )}
       </div>
     </div>
   );

@@ -339,7 +339,7 @@ flowchart LR
   - `PATCH /api/v1/queue/reorder` → `{ orderedIds: [] }`.
   - `DELETE /api/v1/queue/:id` → remove a queued item.
   - `POST /api/v1/playout/skip` → skip current track.
-  - `POST /api/v1/playout/autopilot` → `{ enabled: boolean }` (when off, only queued/live content plays; when empty + off, failover keeps air alive per policy).
+  - `POST /api/v1/playout/autopilot` → `{ enabled: boolean }` (when off, only queued/live content plays; when empty + off the stream goes to **intentional off-air silence** — the emergency playlist is gated to automation only, see Phase 5 note).
 - Real-time updates over WebSocket (`/ws/studio`) so the studio queue panel updates live.
 
 **Inputs**
@@ -370,7 +370,7 @@ flowchart LR
 - **`models/queueItem.js` + `migrations/20260603000001-queue-items.js`**: `QueueItem(trackId, position, requestedBy, status[pending|playing|done|removed], liqRid)`. The DB owns ORDER (position); Liquidsoap holds the live pending queue. Registered + associated (belongsTo `Track`) in `models/index.js`.
 - **`services/queueSync.js`** (DB ↔ Liquidsoap reconciliation): `pushItem` (append: `requests.push <annotate-uri>`), `reconcile` (remove/reorder: `requests.clear` + re-push pending in position order), `markStarted` (metadata hook flips a queued item → playing/done via the round-tripped `queue_item_id`), `skipCurrent` (`radio_out.skip`), `getState`/`broadcastUpdate`.
 - **`services/playoutUri.js`**: extracted the shared `annotate:` URI builder (now takes `{ source, extra }`) so the playout controller and queueSync both use it without a circular dependency. Queued items carry `source="request"` + `queue_item_id`.
-- **`services/autopilot.js`**: in-memory autopilot flag (default from `AUTOPILOT_DEFAULT`). When off, `GET /api/v1/playout/next` 404s so AutoDJ produces nothing — queued/live content still plays, and the emergency failover holds the air when both are empty. `/playout/status` now reports the real flag.
+- **`services/autopilot.js`**: in-memory autopilot flag (default from `AUTOPILOT_DEFAULT`). When off, `GET /api/v1/playout/next` 404s so AutoDJ produces nothing — queued/live content still plays. `/playout/status` reports the real flag. The flag is also mirrored into Liquidsoap (`var.set autopilot_on`) so the emergency failover is gated to automation only — see the Phase 5 note for the silence-on-off policy.
 - **`ws/studioSocket.js`** + **`server.js`**: a `ws` `WebSocketServer` mounted at `/ws/studio` (Express wrapped in an explicit `http.Server`). `broadcast("queue:update", state)` is called on every queue change and on each track boundary; inert (no-op) when no server/clients (so it's safe under jest/supertest). Added `ws` to deps (lockfile updated).
 - **`infra/.env.example`**: documented `LIQUIDSOAP_QUEUE_ID`, `LIQUIDSOAP_OUTPUT_ID`, `AUTOPILOT_DEFAULT`.
 
@@ -378,7 +378,7 @@ flowchart LR
 - **`request.queue`, not `request.equeue`**: the spec suggested `request.queue` *(or request.equeue)*, but `request.equeue` does **not exist in Liquidsoap 2.2.5** (`--check`: "this value has no method `equeue`"; it was deprecated/removed by 2.4). `request.queue` only registers `push`/`queue`/`skip` over telnet (no per-item remove). So the **DB is the source of truth for order** and the API rebuilds the Liquidsoap pending queue on remove/reorder via a registered custom `requests.clear` command (built on the source's script-level `set_queue` method) + re-push. Append is a fast-path single `push`.
 - **`track_sensitive=false` for `[requests, autodj]`** (per the spec example). Combined with the crossfade above the fallback, a freshly-queued item takes over at the next track boundary (the current AutoDJ track finishes, then the queue plays in order), then rotation resumes when the queue empties.
 - **Source label is fixed per on_track hook, not via annotation.** The `source` annotation key does **not** round-trip through Liquidsoap (Phase 2 never noticed because AutoDJ's default was already "autodj"). So `make_on_track("autodj")` / `make_on_track("request")` fix the source per source; the custom `queue_item_id` annotate key **does** round-trip and lets the metadata hook mark the exact `QueueItem` as aired (→ `PlayHistory.source = "request"`).
-- **Autopilot enforced in the API** (`/playout/next` 404s when off) rather than via a Liquidsoap switch — keeps the policy in one testable place and reuses the existing failover chain to hold dead air.
+- **Autopilot enforced in the API** (`/playout/next` 404s when off) rather than via a Liquidsoap switch — keeps the policy in one testable place. (Phase 5 update: the flag is *also* pushed into Liquidsoap as `autopilot_on` to gate the emergency bed, so autopilot-off now means real silence, not the emergency playlist.)
 - **Queue state is broadcast, not just stored**: the metadata hook also drives `queue:update` so the studio NEXT panel reflects items leaving the queue as they air.
 
 **Gotchas (read before Phase 4)**
@@ -595,8 +595,9 @@ of the public listener bundle). The three screenshots are reproduced: General
 Dashboard, Media Library / Upload, and the Virtual Studio centerpiece; Analytics
 and Scheduling/DJ-management are UI shells (Phase 6/7). Built across the three
 suggested windows (A scaffold+auth → B library → C studio), each committed +
-pushed separately. **Component/unit tests: 32/32 (Vitest)**, production `next
-build` green, and a full **live end-to-end** through the app's own proxy against
+pushed separately. **Component/unit tests: 34/34 (Vitest)**, production `next
+build` green, backend API tests **94/94 (Jest in the Node 20 API container)**,
+and a full **live end-to-end** through the app's own proxy against
 the Docker stack (login → library → add to queue → queue reflects → skip →
 nowplaying → studio session start/stop, plus `/ws/studio` greeting + role guard
 401).
@@ -655,6 +656,69 @@ nowplaying → studio session start/stop, plus `/ws/studio` greeting + role guar
   frames `{ mode, duckLevel, micGain }` go over the same socket.
 - **Vitest + Testing Library** (not Jest) — lighter for a TS/Next app. Mock
   `@/lib/api` and `@/lib/mic` for component tests.
+- **Autopilot OFF now means real off-air silence** (changed during Phase 5
+  studio testing, by operator request). Originally the Liquidsoap chain always
+  fell through to the bundled emergency playlist, so toggling Autoplay off in
+  the studio kept audio playing (the test tones) instead of going silent — and
+  because emergency has no `on_track` hook, now-playing *froze*, making it look
+  like skip/playout was stuck. **Fix:** `radio.liq` gained an
+  `autopilot_on = interactive.bool` that gates the emergency source via a
+  single-predicate `switch` (`emergency_gate`). The API mirrors the flag over
+  telnet (`liquidsoapClient.setVar` → `var.set autopilot_on = …`) on every
+  toggle (`playoutController.autopilot`) and on boot with retries
+  (`autopilot.syncToLiquidsoapWithRetry` from `server.js`). Net behavior:
+  emergency is an **automation-only** safety net (covers API/library gaps while
+  autopilot is ON); with autopilot OFF + empty queue + no live mic the chain is
+  fallible and `mksafe` streams blank. **Verified** with `ffmpeg volumedetect`:
+  OFF ⇒ `-91 dB` (digital silence), ON ⇒ real audio (~-30 dB mean); `radio_out.skip`
+  still advances on any source. (Skip was *not* broken — short test clips +
+  frozen emergency metadata made it merely look so.)
+- **Studio deck clears on real dead air.** With autopilot off the now-playing
+  cache would otherwise stay frozen on the last track (no `on_track` fires when
+  the chain goes to mksafe blank), leaving a stale song on the deck after a
+  skip. Added a `blank.detect(id="dead_air")` on the **pre-gain** music bed
+  (so a full-takeover `music_gain=0` is *not* mistaken for silence;
+  `threshold=-60 dB`, `max_blank=2.5s` only trips on the true digital-zero
+  blank). It POSTs `{silent}` to a new internal `POST /api/v1/playout/airstate`
+  (`on_blank`→true, `on_noise`→false). The API sets a `silent` flag in
+  `services/nowPlaying.js` — `get()` returns null while silent (deck/public
+  player empty) but **keeps** the cached track so `on_noise` can restore it
+  (a brief quiet passage can't permanently blank the deck); a real `set()`/track
+  change clears the flag. `airstate` is **ignored while a live DJ is on air**
+  (the public now-playing then reflects the live show, not the muted bed) and
+  broadcasts `queue:update` so the studio deck empties immediately rather than
+  waiting for the 5 s status poll. Frontend: `StudioConsole` now trusts the
+  WS-pushed `queue.nowPlaying` once loaded (a null = empty deck) instead of
+  falling back to the stale polled status, and `StudioPlayer` shows an
+  `OFF AIR · SILENT` badge. **Verified**: skip with autopilot off + empty queue
+  ⇒ `/playout/nowplaying` and `queue.nowPlaying` both go null within ~3 s;
+  re-enabling autopilot repopulates them.
+- **Live talk-over latency — Phase A (timing-tightening).** A DJ can't *react*
+  to a monitor and land a word on an exact beat over a networked mic chain — the
+  error equals (monitor delay + mic delay), so you can only *anticipate* against
+  a low-latency monitor with a small, **constant** mic delay. The studio LISTEN
+  is the public Icecast stream (5–15 s buffered) — the worst feed to cue against.
+  Phase A reduces & stabilizes the **mic-to-air** path so anticipation is
+  learnable: harbor prebuffer `2.0 → 0.5 s` (new `LIVE_HARBOR_BUFFER` env, the
+  dominant knob), `MediaRecorder` timeslice `250 → 120 ms`, and ffmpeg ingest
+  low-latency flags (`-flags low_delay`, libmp3lame `-reservoir 0`,
+  `-flush_packets 1`) — budget drops from ~3 s to ~0.8–1.2 s. UI: a **cue
+  marker** on the deck waveform (amber line at `progress + air_latency/duration`,
+  `NEXT_PUBLIC_AIR_LATENCY_MS`, default 900) shows where a word spoken *now*
+  lands, the Monitor is relabelled "confidence check, delayed — don't cue from
+  it," and `StudioPlayer` shows the mic→air estimate. Verified: Liquidsoap
+  parses with the new buffer, a live harbor source still connects/mixes/fails
+  back cleanly at 0.5 s, studio typechecks. **Trade-off:** lower buffer = tighter
+  timing but less jitter tolerance (raise `LIVE_HARBOR_BUFFER` if the mic
+  stutters). **Phase B (deferred):** a WebRTC monitor return (~150–300 ms) for
+  true beat-by-ear monitoring — needs a WebRTC gateway beside Liquidsoap.
+- **Audit fix after Phase A:** `MicControl` now sends its first
+  `{ mode, duckLevel, micGain }` control frame only from the ingest WebSocket
+  `onOpen` callback (previously it could be dropped before the socket opened).
+  If `getUserMedia` or ingest startup fails after `studio/session/start`, the UI
+  now calls `studio/session/stop` to release the reserved live session instead
+  of leaving the backend stuck in an active-but-not-on-air state. Tests cover
+  both regressions.
 
 **Gotchas (read before Phase 6/8)**
 - **Node 25 + jsdom localStorage clash.** Node 25's experimental Web Storage
@@ -662,9 +726,14 @@ nowplaying → studio session start/stop, plus `/ws/studio` greeting + role guar
   --localstorage-file path`). Fixed by installing a deterministic in-memory
   `localStorage` in `vitest.setup.ts` (version-independent — no
   `--no-experimental-webstorage` flag needed).
-- **Dev-server file-watcher noise.** `next dev` may spam `Watchpack EMFILE: too
-  many open files` under tight FD limits; it's non-fatal (server still serves).
-  Raise `ulimit -n` to silence.
+- **Dev-server file-watcher EMFILE — can be FATAL.** `next dev` spams
+  `Watchpack Error: EMFILE: too many open files, watch` from the macOS
+  kqueue/FSEvents watcher limit (independent of `ulimit -n`, which can be 1M and
+  still hit it). When it storms at startup it can stop Next enumerating
+  `src/app` entirely → **every route 404s** (only `/_not-found` compiles). Fix:
+  use **polling watchers** — the `dev` script now sets
+  `WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true`. If you still see it, clear
+  `.next` and restart. (Earlier note called this "non-fatal"; it is not.)
 - **Host port 8001 shadowing still applies** to anything the studio proxies to:
   a stray local `node server.js` answers instead of the container. Verify the
   API via `docker exec radyoklasik-api-1 curl -fsS localhost:8001/api/v1/health`.

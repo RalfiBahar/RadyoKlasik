@@ -137,6 +137,32 @@ exports.harbor = async (req, res) => {
   }
 };
 
+// POST /api/v1/playout/airstate  (internal; called by Liquidsoap blank.detect)
+// { silent: boolean } — true when the music bed has gone to genuine dead air
+// (autopilot off + empty queue), false when audio resumes. Clears/restores the
+// now-playing cache so the studio deck and public player empty on real silence.
+// Ignored while a live DJ is on air: the public now-playing then reflects the
+// live show, and the (muted) music bed underneath is not "off air".
+exports.airstate = async (req, res) => {
+  try {
+    const silent = !!(req.body && req.body.silent);
+    if (silent && liveSession.isOnAir()) {
+      return res.json({ ok: true, ignored: "live on air" });
+    }
+    nowPlaying.setSilent(silent);
+    try {
+      await queueSync.broadcastUpdate();
+    } catch (err) {
+      logger.warn("airstate broadcast failed", { error: String(err) });
+    }
+    logger.info("playout/airstate", { silent });
+    return res.json({ ok: true, silent });
+  } catch (err) {
+    logger.error("playout/airstate failed", { error: String(err) });
+    return res.status(500).json({ error: String(err) });
+  }
+};
+
 // GET /playout/nowplaying  (public; consumed by the web + mobile players)
 // Exact shape the frontend expects: { album, artist, title, thumb }.
 exports.nowplaying = (req, res) => {
@@ -199,6 +225,14 @@ exports.autopilot = async (req, res) => {
     return res.status(400).json({ error: "enabled (boolean) is required" });
   }
   autopilot.set(body.enabled);
+  // Mirror the flag into Liquidsoap so the emergency failover is gated to
+  // automation only: OFF => the chain falls through to silence when nothing is
+  // queued/live (instead of the emergency playlist). Best-effort.
+  try {
+    await autopilot.syncToLiquidsoap();
+  } catch (err) {
+    logger.warn("autopilot liquidsoap sync failed", { error: String(err) });
+  }
   // Optionally cut the current AutoDJ track immediately when disabling so the
   // queue/failover takes over without waiting for the track to finish.
   if (!body.enabled && req.body.skipCurrent) {

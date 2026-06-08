@@ -12,11 +12,15 @@ export default function Waveform({
   progress = 0,
   bars = 96,
   live = false,
+  cue = null,
 }: {
   trackId?: string | null;
   progress?: number;
   bars?: number;
   live?: boolean;
+  // Optional normalized [0,1] position for the talk-over cue marker: where a
+  // word spoken NOW will land on the track, accounting for mic-to-air latency.
+  cue?: number | null;
 }) {
   const [peaks, setPeaks] = useState<number[] | null>(null);
 
@@ -59,10 +63,11 @@ export default function Waveform({
   }, [peaks, bars]);
 
   const playedIdx = Math.floor(columns.length * Math.min(1, Math.max(0, progress)));
+  const showCue = cue != null && cue > 0 && cue < 1;
 
   return (
     <div
-      className="flex h-16 items-center gap-[2px]"
+      className="relative flex h-16 items-center gap-[2px]"
       role="img"
       aria-label="Track waveform"
       data-testid="waveform"
@@ -83,6 +88,22 @@ export default function Waveform({
           />
         );
       })}
+      {showCue && (
+        // "Speak now → lands here" marker: amber line offset ahead of the
+        // playhead by the mic-to-air latency. Aim a word at a beat by speaking
+        // when this marker reaches it.
+        <div
+          className="pointer-events-none absolute inset-y-0 z-10 flex flex-col items-center"
+          style={{ left: `${cue! * 100}%` }}
+          title="Where a word spoken now will land (mic-to-air latency)"
+          data-testid="waveform-cue"
+        >
+          <div className="h-full w-[2px] bg-amber-400/90" />
+          <span className="absolute -top-1 -translate-x-1/2 text-[10px] leading-none text-amber-400">
+            ▼
+          </span>
+        </div>
+      )}
     </div>
   );
 }

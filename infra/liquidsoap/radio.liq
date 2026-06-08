@@ -54,6 +54,12 @@ live_harbor_password = env_or("LIVE_HARBOR_PASSWORD", "hackme-live")
 # Seconds the harbor tolerates silence/stalls before declaring the source dead
 # and failing back to AutoDJ (the configurable failback window).
 live_harbor_timeout = float_of_string(env_or("LIVE_HARBOR_TIMEOUT", "10.0"))
+# Harbor prebuffer (seconds). This is the dominant mic-to-air latency knob: the
+# DJ's voice is delayed by roughly this much before it reaches the mixer. Phase
+# A lowered it from 2.0 to 0.5 for tight, *consistent* live talk-over timing.
+# Lower = tighter timing but less tolerant of network jitter (risk of dropouts);
+# raise it again if the live mic stutters on a poor connection.
+live_harbor_buffer = float_of_string(env_or("LIVE_HARBOR_BUFFER", "0.5"))
 # Default voice-over duck level (portion of music amplitude kept under voice);
 # overridden per-DJ at connect via the telnet interactive var.
 live_duck_level = float_of_string(env_or("LIVE_DUCK_LEVEL", "0.25"))
@@ -63,6 +69,7 @@ live_fade = float_of_string(env_or("LIVE_FADE_DURATION", "0.8"))
 next_url = "#{api_base}/api/v1/playout/next"
 meta_url = "#{api_base}/api/v1/playout/metadata"
 harbor_url = "#{api_base}/api/v1/playout/harbor"
+airstate_url = "#{api_base}/api/v1/playout/airstate"
 
 # --- AutoDJ: DB-driven rotation ------------------------------------------
 # request.dynamic calls the API for each next track. The API returns an
@@ -191,9 +198,15 @@ program =
   )
 
 # --- Emergency / dead-air failover ---------------------------------------
-# If neither queued nor AutoDJ audio is available (API down, empty library,
-# autopilot off + empty queue) we fall back to a bundled playlist, then to
-# mksafe blank — never dead air. mksafe makes the emergency source infallible.
+# The emergency playlist is an AUTOMATION safety net: it covers AutoDJ gaps
+# (API down, empty library) WHILE autopilot is on. When the operator turns
+# autopilot OFF they want genuine off-air silence rather than the emergency
+# bed, so emergency is gated by `autopilot_on` — an interactive bool the API
+# mirrors over telnet (`var.set autopilot_on = true|false`) whenever autopilot
+# toggles. With autopilot OFF and nothing queued/live, the chain falls through
+# to mksafe blank (silence) instead of the emergency playlist.
+autopilot_on = interactive.bool("autopilot_on", true)
+
 emergency =
   playlist(
     id="emergency",
@@ -201,12 +214,67 @@ emergency =
     reload_mode="watch",
     emergency_dir
   )
-emergency = mksafe(emergency)
+# A single (predicate, source) switch is FALLIBLE when the predicate is false,
+# so when autopilot is off the music fallback below skips emergency and reaches
+# mksafe blank (silence). track_sensitive=false so flipping autopilot off drops
+# the emergency bed promptly rather than waiting for the current clip to end.
+emergency =
+  switch(
+    id="emergency_gate",
+    track_sensitive=false,
+    [({autopilot_on()}, emergency)]
+  )
 
-# Music failover chain: [program (requests -> autodj), emergency]. Always ready
-# (emergency is infallible) so there is never dead air on the music bed.
+# Music failover chain: [program (requests -> autodj), emergency]. With
+# autopilot on, emergency keeps the music bed alive (never dead air); with
+# autopilot off + empty queue, the chain is fallible and mksafe streams blank
+# (intentional off-air silence).
 music = fallback(id="music", track_sensitive=false, [program, emergency])
 music = mksafe(music)
+
+# --- Dead-air detection (clears the studio deck) -------------------------
+# When the music bed is genuinely silent (autopilot off + empty queue + no
+# live), the now-playing cache would otherwise stay frozen on the last track,
+# leaving a stale song on the studio deck. blank.detect watches the bed and
+# tells the API to clear (on_blank) / restore (on_noise) now-playing so the UI
+# deck empties on real off-air silence. Detection runs on the PRE-gain bed (the
+# `music_gain` full-takeover cut is applied later) so muting music for a live
+# takeover is NOT mistaken for dead air. threshold=-60 dB only ever trips on the
+# mksafe blank (true silence ≈ -91 dB); real audio after ReplayGain never sits
+# below it for max_blank seconds, so quiet passages won't falsely blank it.
+def notify_air(silent) =
+  payload = json.stringify({ silent = silent })
+  def task() =
+    sent = ref(false)
+    def body() =
+      if sent() then "" else sent := true; payload end
+    end
+    response =
+      http.post(
+        airstate_url,
+        headers=
+          [
+            ("Content-Type", "application/json"),
+            ("X-Internal-Secret", internal_secret)
+          ],
+        data=body
+      )
+    log(level=3, "playout/airstate silent=#{silent} -> HTTP #{response.status_code}")
+  end
+  thread.run(task)
+end
+
+music =
+  blank.detect(
+    id="dead_air",
+    max_blank=2.5,
+    min_noise=0.3,
+    threshold=-60.,
+    track_sensitive=false,
+    on_noise=fun() -> notify_air(false),
+    fun() -> notify_air(true),
+    music
+  )
 
 # --- Phase 4: live DJ mix + voice-over ducking ---------------------------
 # Two interactive (telnet-settable) controls drive the live behavior so the API
@@ -256,8 +324,8 @@ live =
     port=live_harbor_port,
     user=live_harbor_user,
     password=live_harbor_password,
-    timeout=live_harbor_timeout,
-    buffer=2.,
+      timeout=live_harbor_timeout,
+      buffer=live_harbor_buffer,
     on_connect=
       fun(_) ->
         begin

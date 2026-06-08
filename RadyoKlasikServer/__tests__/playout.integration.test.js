@@ -206,6 +206,49 @@ describe("GET /playout/nowplaying (public)", () => {
   });
 });
 
+describe("POST /api/v1/playout/airstate (internal)", () => {
+  test("clears now-playing during true silence and restores it on noise", async () => {
+    await request(app)
+      .post("/api/v1/playout/metadata")
+      .set("X-Internal-Secret", INTERNAL)
+      .send({
+        title: "Silent Test",
+        artist: "Tester",
+        album: "Playout",
+        track_id: songB.id,
+        source: "autodj",
+      });
+
+    const silent = await request(app)
+      .post("/api/v1/playout/airstate")
+      .set("X-Internal-Secret", INTERNAL)
+      .send({ silent: true });
+    expect(silent.status).toBe(200);
+    expect(silent.body).toMatchObject({ ok: true, silent: true });
+
+    const empty = await request(app).get("/playout/nowplaying");
+    expect(empty.body).toEqual({
+      album: null,
+      artist: null,
+      title: null,
+      thumb: null,
+    });
+
+    const noise = await request(app)
+      .post("/api/v1/playout/airstate")
+      .set("X-Internal-Secret", INTERNAL)
+      .send({ silent: false });
+    expect(noise.status).toBe(200);
+
+    const restored = await request(app).get("/playout/nowplaying");
+    expect(restored.body).toMatchObject({
+      album: "Playout",
+      artist: "Tester",
+      title: "Silent Test",
+    });
+  });
+});
+
 describe("GET /api/v1/playout/status", () => {
   test("requires a JWT", async () => {
     const res = await request(app).get("/api/v1/playout/status");

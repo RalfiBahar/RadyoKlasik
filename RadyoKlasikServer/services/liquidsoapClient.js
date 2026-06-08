@@ -74,6 +74,22 @@ function pushRequest(uri, options = {}) {
   return command(`${queue}.push ${uri}`, options);
 }
 
+// Set an interactive variable (interactive.bool / interactive.float, etc.) over
+// telnet: `var.set <name> = <value>`. Booleans become true/false, strings are
+// quoted, numbers are passed through. Used to mirror control-plane state into
+// the running script without a reload (e.g. the autopilot_on emergency gate).
+function setVar(name, value, options) {
+  let formatted;
+  if (typeof value === "boolean") {
+    formatted = value ? "true" : "false";
+  } else if (typeof value === "string") {
+    formatted = JSON.stringify(value); // quoted string literal
+  } else {
+    formatted = String(value);
+  }
+  return command(`var.set ${name} = ${formatted}`, options);
+}
+
 // Probe whether the telnet server answers (best-effort liveness check).
 async function reachable(options) {
   try {
@@ -84,4 +100,4 @@ async function reachable(options) {
   }
 }
 
-module.exports = { command, skip, pushRequest, reachable };
+module.exports = { command, skip, pushRequest, setVar, reachable };

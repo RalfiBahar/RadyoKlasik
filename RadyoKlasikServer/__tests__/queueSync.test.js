@@ -12,6 +12,7 @@ jest.mock("../services/liquidsoapClient", () => {
   return {
     command: jest.fn(async (cmd) => (cmd.endsWith(".queue") ? "" : "Done.")),
     pushRequest: jest.fn(async () => String(++rid)),
+    setVar: jest.fn(async () => "Done."),
     skip: jest.fn(async () => "Done."),
     reachable: jest.fn(async () => true),
   };

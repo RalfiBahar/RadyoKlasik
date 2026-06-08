@@ -51,6 +51,10 @@ export default function Monitor() {
           {listening ? "◉ LISTEN ON" : "○ LISTEN"}
         </button>
       </div>
+      <p className="text-[11px] leading-snug text-slate-500">
+        Confidence check of the public broadcast — delayed several seconds. Do
+        NOT use it to time talk-over; use the cue marker on the deck instead.
+      </p>
       <div className="flex items-center justify-between">
         <Toggle label="Deck Out" on={deckOut} onClick={() => setDeckOut((d) => !d)} />
         <div className="flex items-center gap-2">

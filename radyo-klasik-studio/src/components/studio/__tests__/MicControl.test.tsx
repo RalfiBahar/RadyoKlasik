@@ -45,8 +45,13 @@ const live: StudioState = {
 };
 
 describe("MicControl — toggling drives session/start + ingest WS", () => {
+  let sendControl: ReturnType<typeof vi.fn>;
+  let closeIngest: ReturnType<typeof vi.fn>;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    sendControl = vi.fn();
+    closeIngest = vi.fn();
     (api.startStudioSession as ReturnType<typeof vi.fn>).mockResolvedValue({
       sessionId: "sess-1",
       mode: "voiceover",
@@ -57,8 +62,8 @@ describe("MicControl — toggling drives session/start + ingest WS", () => {
       getTracks: () => [],
     });
     (mic.connectIngest as ReturnType<typeof vi.fn>).mockReturnValue({
-      sendControl: vi.fn(),
-      close: vi.fn(),
+      sendControl,
+      close: closeIngest,
       stream: {},
     });
   });
@@ -75,6 +80,36 @@ describe("MicControl — toggling drives session/start + ingest WS", () => {
     const arg = (mic.connectIngest as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(arg.token).toBe("jwt.tok");
     expect(arg.sessionId).toBe("sess-1");
+  });
+
+  it("sends initial mic controls after the ingest socket opens", async () => {
+    render(<MicControl studio={idle} token="jwt.tok" onChanged={() => {}} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Turn microphone on/ }));
+    await waitFor(() => expect(mic.connectIngest).toHaveBeenCalledTimes(1));
+
+    expect(sendControl).not.toHaveBeenCalled();
+    const arg = (mic.connectIngest as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    arg.onOpen();
+    expect(sendControl).toHaveBeenCalledWith({
+      mode: "voiceover",
+      micGain: 1,
+      duckLevel: 0.25,
+    });
+  });
+
+  it("stops the reserved studio session if microphone capture fails", async () => {
+    (mic.captureMic as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error("Permission denied")
+    );
+
+    render(<MicControl studio={idle} token="jwt.tok" onChanged={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /Turn microphone on/ }));
+
+    await waitFor(() => expect(api.startStudioSession).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(api.stopStudioSession).toHaveBeenCalledTimes(1));
+    expect(mic.connectIngest).not.toHaveBeenCalled();
+    expect(await screen.findByText("Permission denied")).toBeInTheDocument();
   });
 
   it("turning the mic OFF stops the session", async () => {
