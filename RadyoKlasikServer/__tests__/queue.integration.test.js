@@ -31,11 +31,13 @@ jest.mock("../services/liquidsoapClient", () => {
 
 const request = require("supertest");
 const jwt = require("jsonwebtoken");
+const axios = require("axios");
 const WebSocket = require("ws");
 const app = require("../app");
 const studioSocket = require("../ws/studioSocket");
 const liquidsoap = require("../services/liquidsoapClient");
 const autopilot = require("../services/autopilot");
+const nowPlaying = require("../services/nowPlaying");
 const { runMigrations } = require("../config/migrate");
 const { sequelize, Track, QueueItem, PlayHistory } = require("../models");
 
@@ -222,6 +224,35 @@ describe("metadata hook flips queued items as they air", () => {
 
     const after = await PlayHistory.count({ where: { source: "request" } });
     expect(after).toBe(before + 1);
+  });
+});
+
+describe("now-playing recovery", () => {
+  test("queue state recovers the deck from Icecast after an API restart", async () => {
+    nowPlaying.clear();
+    const spy = jest.spyOn(axios, "get").mockResolvedValueOnce({
+      data: {
+        icestats: {
+          source: {
+            title: "Queue Tester - Queue B",
+            stream_start_iso8601: "2026-06-08T02:09:46+0000",
+          },
+        },
+      },
+    });
+
+    const list = await request(app)
+      .get("/api/v1/queue")
+      .set("Authorization", AUTH);
+
+    expect(list.status).toBe(200);
+    expect(list.body.nowPlaying).toMatchObject({
+      title: "Queue B",
+      artist: "Queue Tester",
+      source: "autodj",
+      trackId: trackB.id,
+    });
+    spy.mockRestore();
   });
 });
 

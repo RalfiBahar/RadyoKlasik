@@ -1,11 +1,10 @@
-const axios = require("axios");
-
 const { Track, PlayHistory } = require("../models");
 const rotation = require("../services/rotation");
 const nowPlaying = require("../services/nowPlaying");
 const autopilot = require("../services/autopilot");
 const queueSync = require("../services/queueSync");
 const liveSession = require("../services/liveSession");
+const icecastStatus = require("../services/icecastStatus");
 const { replaygainToLinear, annotateUri } = require("../services/playoutUri");
 const logger = require("../logger");
 
@@ -165,8 +164,15 @@ exports.airstate = async (req, res) => {
 
 // GET /playout/nowplaying  (public; consumed by the web + mobile players)
 // Exact shape the frontend expects: { album, artist, title, thumb }.
-exports.nowplaying = (req, res) => {
-  const np = nowPlaying.get();
+exports.nowplaying = async (req, res) => {
+  let np = nowPlaying.get();
+  if (!np) {
+    try {
+      np = await icecastStatus.recoverNowPlaying();
+    } catch (err) {
+      logger.warn("nowplaying recovery failed", { error: String(err) });
+    }
+  }
   return res.json({
     album: np ? np.album : null,
     artist: np ? np.artist : null,
@@ -177,10 +183,17 @@ exports.nowplaying = (req, res) => {
 
 // GET /api/v1/playout/status  (operator; JWT-protected)
 exports.status = async (req, res) => {
-  const np = nowPlaying.get();
+  let np = nowPlaying.get();
+  if (!np) {
+    try {
+      np = await icecastStatus.recoverNowPlaying();
+    } catch (err) {
+      logger.warn("status nowplaying recovery failed", { error: String(err) });
+    }
+  }
   let listeners = null;
   try {
-    listeners = await getIcecastListeners();
+    listeners = await icecastStatus.getListenerCount();
   } catch (_) {
     listeners = null;
   }
@@ -245,19 +258,6 @@ exports.autopilot = async (req, res) => {
   logger.info("playout/autopilot", { enabled: autopilot.isEnabled() });
   return res.json({ autopilot: autopilot.isEnabled() });
 };
-
-// Best-effort listener count from Icecast's public status JSON.
-async function getIcecastListeners() {
-  const host = process.env.ICECAST_HOST || "localhost";
-  const port = process.env.ICECAST_PORT || 8000;
-  const { data } = await axios.get(`http://${host}:${port}/status-json.xsl`, {
-    timeout: 2000,
-  });
-  const source = data && data.icestats && data.icestats.source;
-  if (!source) return 0;
-  const sources = Array.isArray(source) ? source : [source];
-  return sources.reduce((sum, s) => sum + (Number(s.listeners) || 0), 0);
-}
 
 exports.replaygainToLinear = replaygainToLinear;
 exports.annotateUri = annotateUri;

@@ -17,9 +17,11 @@ process.env.MEDIA_DIR =
 
 const request = require("supertest");
 const jwt = require("jsonwebtoken");
+const axios = require("axios");
 const app = require("../app");
 const { runMigrations } = require("../config/migrate");
 const { sequelize, Track, PlayHistory } = require("../models");
+const nowPlaying = require("../services/nowPlaying");
 
 const INTERNAL = process.env.INTERNAL_API_SECRET;
 const AUTH = `Bearer ${jwt.sign({ role: "admin" }, process.env.SECRET_KEY)}`;
@@ -203,6 +205,30 @@ describe("GET /playout/nowplaying (public)", () => {
       artist: "Public Artist",
       title: "Public Song",
     });
+  });
+
+  test("recovers from Icecast metadata when the API cache is empty", async () => {
+    nowPlaying.clear();
+    const spy = jest.spyOn(axios, "get").mockResolvedValueOnce({
+      data: {
+        icestats: {
+          source: {
+            title: "Tester - Song B",
+            stream_start_iso8601: "2026-06-08T02:09:46+0000",
+          },
+        },
+      },
+    });
+
+    const res = await request(app).get("/playout/nowplaying");
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      album: "Playout",
+      artist: "Tester",
+      title: "Song B",
+    });
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
   });
 });
 

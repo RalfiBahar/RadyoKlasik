@@ -2,6 +2,7 @@ const { QueueItem, Track } = require("../models");
 const liquidsoap = require("./liquidsoapClient");
 const { annotateUri } = require("./playoutUri");
 const nowPlaying = require("./nowPlaying");
+const icecastStatus = require("./icecastStatus");
 const studioSocket = require("../ws/studioSocket");
 const logger = require("../logger");
 
@@ -146,7 +147,16 @@ async function markStarted(queueItemId) {
 // Current queue state for GET /api/v1/queue and the queue:update broadcast.
 async function getState() {
   const items = await pendingItems();
-  const np = nowPlaying.get();
+  let np = nowPlaying.get();
+  if (!np) {
+    try {
+      np = await icecastStatus.recoverNowPlaying();
+    } catch (err) {
+      logger.warn("queueSync.getState: nowplaying recovery failed", {
+        error: String(err),
+      });
+    }
+  }
   return {
     nowPlaying: np
       ? {
