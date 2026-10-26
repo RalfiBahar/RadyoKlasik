@@ -15,6 +15,9 @@ const Show = sequelize.define(
     tagline: { type: DataTypes.STRING, allowNull: true },
     logoPath: { type: DataTypes.STRING, allowNull: true },
     coverPath: { type: DataTypes.STRING, allowNull: true },
+    // Automation playlist that feeds AutoDJ while the show's slot is on air.
+    playlistId: { type: DataTypes.UUID, allowNull: true },
+    color: { type: DataTypes.STRING, allowNull: true },
   },
   { timestamps: true }
 );

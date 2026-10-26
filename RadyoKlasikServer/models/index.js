@@ -17,6 +17,11 @@ const PlayHistory = require("./playHistory");
 const QueueItem = require("./queueItem");
 const Recording = require("./recording");
 const NotificationToken = require("./notificationToken");
+const ScheduleSlot = require("./scheduleSlot");
+const ShowHost = require("./showHost");
+const StationSetting = require("./stationSetting");
+const ListenerSession = require("./listenerSession");
+const ListenerSnapshot = require("./listenerSnapshot");
 
 // --- Artist / Album / Track ------------------------------------------------
 Artist.hasMany(Track, { foreignKey: "artistId", as: "tracks" });
@@ -64,6 +69,24 @@ QueueItem.belongsTo(Track, { foreignKey: "trackId", as: "track" });
 Show.hasMany(Episode, { foreignKey: "showId", as: "episodes" });
 Episode.belongsTo(Show, { foreignKey: "showId", as: "show" });
 
+// --- Shows / hosts / schedule (Phase 7) ----------------------------------
+Show.belongsToMany(User, {
+  through: ShowHost,
+  foreignKey: "showId",
+  otherKey: "userId",
+  as: "hosts",
+});
+User.belongsToMany(Show, {
+  through: ShowHost,
+  foreignKey: "userId",
+  otherKey: "showId",
+  as: "shows",
+});
+Show.belongsTo(Playlist, { foreignKey: "playlistId", as: "playlist" });
+ScheduleSlot.belongsTo(Show, { foreignKey: "showId", as: "show" });
+ScheduleSlot.belongsTo(Playlist, { foreignKey: "playlistId", as: "playlist" });
+Show.hasMany(ScheduleSlot, { foreignKey: "showId", as: "slots" });
+
 module.exports = {
   sequelize,
   Track,
@@ -80,4 +103,9 @@ module.exports = {
   QueueItem,
   Recording,
   NotificationToken,
+  ScheduleSlot,
+  ShowHost,
+  StationSetting,
+  ListenerSession,
+  ListenerSnapshot,
 };

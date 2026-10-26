@@ -99,12 +99,19 @@ describe("POST /api/v1/studio/session/start", () => {
     );
   });
 
-  test("full live takeover cuts the music bed (music_gain 0)", async () => {
+  test("full live takeover cuts the music bed only once the mic connects", async () => {
     const res = await request(app)
       .post("/api/v1/studio/session/start")
       .set("Authorization", AUTH)
       .send({ mode: "live" });
     expect(res.status).toBe(201);
+    // Reserved but no audio yet: the music must keep playing (no dead air
+    // while the browser permission prompt is open).
+    expect(liquidsoap.command).not.toHaveBeenCalledWith(
+      "var.set live_music_gain = 0.0000"
+    );
+
+    await liveSession.onHarborConnected();
     expect(liquidsoap.command).toHaveBeenCalledWith(
       "var.set live_music_gain = 0.0000"
     );
@@ -113,8 +120,12 @@ describe("POST /api/v1/studio/session/start", () => {
   test("applies per-DJ mic preferences from User.micPreferencesJson", async () => {
     const res = await request(app)
       .post("/api/v1/studio/session/start")
-      .set("Authorization", AUTH)
-      .send({ mode: "voiceover", userId: dj.id });
+      // The DJ is identified by their staff token (Phase 7), not the body.
+      .set(
+        "Authorization",
+        `Bearer ${jwt.sign({ sub: dj.id, role: "dj" }, process.env.SECRET_KEY)}`
+      )
+      .send({ mode: "voiceover" });
     expect(res.status).toBe(201);
     // duckLevel 0.4 + micGain 2 from the DJ's prefs.
     expect(liquidsoap.command).toHaveBeenCalledWith("var.set live_duck = 0.4000");
@@ -214,6 +225,30 @@ describe("harbor connect/disconnect drives onAir + now-playing", () => {
     expect(np.body.title).toBe("Bed Track");
   });
 
+  test("stopping restores the pre-live track when no track changed on air", async () => {
+    await request(app)
+      .post("/api/v1/playout/metadata")
+      .set("X-Internal-Secret", INTERNAL)
+      .send({ title: "Before Live", artist: "Bed Artist", source: "autodj" });
+    await request(app)
+      .post("/api/v1/studio/session/start")
+      .set("Authorization", AUTH)
+      .send({ mode: "voiceover", show: "Quick Hello", dj: "DJ Y" });
+    await request(app)
+      .post("/api/v1/playout/harbor")
+      .set("X-Internal-Secret", INTERNAL)
+      .send({ event: "connect" });
+    expect((await request(app).get("/playout/nowplaying")).body.title).toBe(
+      "Quick Hello"
+    );
+
+    await request(app)
+      .post("/api/v1/studio/session/stop")
+      .set("Authorization", AUTH);
+    const np = await request(app).get("/playout/nowplaying");
+    expect(np.body.title).toBe("Before Live");
+  });
+
   test("harbor endpoint rejects an unknown event + requires the internal secret", async () => {
     const noSecret = await request(app)
       .post("/api/v1/playout/harbor")
@@ -232,6 +267,39 @@ describe("harbor connect/disconnect drives onAir + now-playing", () => {
   });
 });
 
+describe("connect timeout", () => {
+  test("releases a reserved session whose mic never connects", async () => {
+    process.env.LIVE_CONNECT_TIMEOUT_MS = "200";
+    try {
+      const res = await request(app)
+        .post("/api/v1/studio/session/start")
+        .set("Authorization", AUTH)
+        .send({ mode: "voiceover" });
+      expect(res.status).toBe(201);
+      expect(liveSession.isActive()).toBe(true);
+      await new Promise((r) => setTimeout(r, 400));
+      expect(liveSession.isActive()).toBe(false);
+    } finally {
+      delete process.env.LIVE_CONNECT_TIMEOUT_MS;
+    }
+  });
+
+  test("a connected session is not released by the connect timeout", async () => {
+    process.env.LIVE_CONNECT_TIMEOUT_MS = "200";
+    try {
+      await request(app)
+        .post("/api/v1/studio/session/start")
+        .set("Authorization", AUTH)
+        .send({ mode: "voiceover" });
+      await liveSession.onHarborConnected();
+      await new Promise((r) => setTimeout(r, 400));
+      expect(liveSession.isActive()).toBe(true);
+    } finally {
+      delete process.env.LIVE_CONNECT_TIMEOUT_MS;
+    }
+  });
+});
+
 describe("POST /api/v1/studio/session/mode", () => {
   test("switches live <-> voiceover and re-pushes the music gain", async () => {
     await request(app)
@@ -239,6 +307,7 @@ describe("POST /api/v1/studio/session/mode", () => {
       .set("Authorization", AUTH)
       .send({ mode: "voiceover" });
 
+    await liveSession.onHarborConnected();
     liquidsoap.command.mockClear();
     const toLive = await request(app)
       .post("/api/v1/studio/session/mode")
@@ -260,11 +329,14 @@ describe("ingest WS authorization", () => {
       .send({ mode: "voiceover" });
     const sessionId = start.body.sessionId;
     const token = jwt.sign({ role: "dj" }, process.env.SECRET_KEY);
+    // The legacy shared-secret token (no role) is public — never enough.
+    const listener = jwt.sign({}, process.env.SECRET_KEY);
 
-    expect(ingest.authorize(token, sessionId)).toBe(true);
-    expect(ingest.authorize(token, "not-the-session")).toBe(false);
-    expect(ingest.authorize("bad.token", sessionId)).toBe(false);
-    expect(ingest.authorize(null, sessionId)).toBe(false);
+    expect(await ingest.authorize(token, sessionId)).toBe(true);
+    expect(await ingest.authorize(token, "not-the-session")).toBe(false);
+    expect(await ingest.authorize(listener, sessionId)).toBe(false);
+    expect(await ingest.authorize("bad.token", sessionId)).toBe(false);
+    expect(await ingest.authorize(null, sessionId)).toBe(false);
   });
 
   test("harborUrl points at the Liquidsoap harbor mount", () => {
@@ -286,7 +358,9 @@ describe("ingest WS authorization", () => {
 
 describe("/ws/studio broadcasts studio:state", () => {
   test("a connected client receives studio:state when a session starts", async () => {
-    const ws = new WebSocket(`ws://127.0.0.1:${wsPort}/ws/studio`);
+    const ws = new WebSocket(
+      `ws://127.0.0.1:${wsPort}/ws/studio?token=${AUTH.slice(7)}`
+    );
     await new Promise((resolve, reject) => {
       ws.on("open", resolve);
       ws.on("error", reject);

@@ -10,13 +10,14 @@ const NAV: { section: Section; href: string; label: string; icon: string }[] = [
   { section: "dashboard", href: "/dashboard", label: "Dashboard", icon: "◴" },
   { section: "studio", href: "/studio", label: "Virtual Studio", icon: "▣" },
   { section: "library", href: "/library", label: "Media Library", icon: "♫" },
+  { section: "playlists", href: "/playlists", label: "Playlists", icon: "≣" },
   { section: "analytics", href: "/analytics", label: "Analytics", icon: "▤" },
   { section: "scheduling", href: "/scheduling", label: "Scheduling", icon: "▦" },
   { section: "djs", href: "/djs", label: "DJ Management", icon: "☺" },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
-  const { ready, isAuthenticated, role, logout } = useAuth();
+  const { ready, isAuthenticated, role, name, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -71,7 +72,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <div className="border-t border-ink-700 p-3 text-xs text-slate-400">
           <div className="mb-2">
             Signed in as{" "}
-            <span className="font-semibold uppercase text-slate-200">{role}</span>
+            <span className="font-semibold text-slate-200">{name || "—"}</span>
+            <span className="ml-1 uppercase text-slate-500">· {role}</span>
           </div>
           <button onClick={onLogout} className="btn-ghost w-full">
             Sign out

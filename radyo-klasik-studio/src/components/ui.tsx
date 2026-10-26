@@ -93,3 +93,75 @@ export function ComingSoon({ feature, phase }: { feature: string; phase: string 
     </div>
   );
 }
+
+export function Modal({
+  title,
+  onClose,
+  children,
+  footer,
+  wide,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+  footer?: ReactNode;
+  wide?: boolean;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        className={`card max-h-[90vh] w-full space-y-4 overflow-y-auto scroll-thin ${
+          wide ? "max-w-2xl" : "max-w-md"
+        }`}
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">{title}</h2>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-200"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
+        {children}
+        {footer && <div className="flex justify-end gap-2 pt-2">{footer}</div>}
+      </div>
+    </div>
+  );
+}
+
+export function Field({
+  label,
+  children,
+  hint,
+}: {
+  label: string;
+  children: ReactNode;
+  hint?: string;
+}) {
+  return (
+    <label className="block space-y-1">
+      <span className="text-xs font-medium uppercase text-slate-400">{label}</span>
+      {children}
+      {hint && <span className="block text-xs text-slate-500">{hint}</span>}
+    </label>
+  );
+}
+
+export function ErrorText({ children }: { children: ReactNode }) {
+  if (!children) return null;
+  return (
+    <p className="rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-400" role="alert">
+      {children}
+    </p>
+  );
+}

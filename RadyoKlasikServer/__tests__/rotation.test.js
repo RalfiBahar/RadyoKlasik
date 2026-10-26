@@ -97,3 +97,44 @@ describe("rotation.chooseNext", () => {
     expect(rotation.getState()).toEqual(before);
   });
 });
+
+describe("rotation planned upcoming list", () => {
+  beforeEach(() => rotation.resetAll());
+
+  test("upcoming() is stable between calls (no re-rolling)", () => {
+    const a = rotation.upcoming({ songs, jingles }).map((e) => e.item.id);
+    const b = rotation.upcoming({ songs, jingles }).map((e) => e.item.id);
+    expect(a.length).toBeGreaterThan(0);
+    expect(b).toEqual(a);
+  });
+
+  test("takeNext() serves exactly what upcoming() promised, in order", () => {
+    const promised = rotation.upcoming({ songs, jingles }).map((e) => e.item.id);
+    const served = [];
+    for (let i = 0; i < 4; i++) {
+      const { item } = rotation.takeNext({ songs, jingles });
+      served.push(item.id);
+      rotation.markAired(item.id);
+    }
+    expect(served).toEqual(promised.slice(0, 4));
+  });
+
+  test("a served-but-not-aired item stays at the head of upcoming()", () => {
+    const { item } = rotation.takeNext({ songs, jingles });
+    expect(rotation.upcoming({ songs, jingles })[0].item.id).toBe(item.id);
+    const before = rotation.upcoming({ songs, jingles }).length;
+    rotation.markAired(item.id);
+    const after = rotation.upcoming({ songs, jingles });
+    // The aired item left the served slot; the list is refilled to full size.
+    expect(after.length).toBe(before);
+  });
+
+  test("drops planned tracks that were deleted from the library", () => {
+    const first = rotation.upcoming({ songs, jingles });
+    const gone = first[0].item.id;
+    const remaining = songs.filter((s) => s.id !== gone);
+    const jRemaining = jingles.filter((j) => j.id !== gone);
+    const after = rotation.upcoming({ songs: remaining, jingles: jRemaining });
+    expect(after.map((e) => e.item.id)).not.toContain(gone);
+  });
+});

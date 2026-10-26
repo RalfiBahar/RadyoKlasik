@@ -3,6 +3,9 @@ const app = require("./app");
 const studioSocket = require("./ws/studioSocket");
 const ingest = require("./ws/ingest");
 const autopilot = require("./services/autopilot");
+const settings = require("./services/settings");
+const scheduler = require("./services/scheduler");
+const analyticsCollector = require("./services/analytics/collector");
 
 const PORT = process.env.PORT || 8001;
 
@@ -20,5 +23,14 @@ server.listen(PORT, () => {
   // Push the current autopilot flag into Liquidsoap so the emergency-failover
   // gate matches the API on boot (e.g. AUTOPILOT_DEFAULT=false or a Liquidsoap
   // restart). Best-effort with retries; never blocks startup.
-  autopilot.syncToLiquidsoapWithRetry().catch(() => {});
+  // Phase 7: load persisted station settings (autopilot, break cadence,
+  // timezone) before syncing, then start the schedule resolver.
+  app.ready
+    .then(() => settings.load())
+    .then(() => {
+      scheduler.start();
+      analyticsCollector.start();
+      return autopilot.syncToLiquidsoapWithRetry();
+    })
+    .catch(() => {});
 });

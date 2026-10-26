@@ -23,6 +23,11 @@ const User = sequelize.define(
       defaultValue: "dj",
     },
     micPreferencesJson: { type: DataTypes.JSONB, allowNull: true },
+    displayName: { type: DataTypes.STRING, allowNull: true },
+    active: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+    // Guest DJs only: the window their invite link is valid for.
+    accessFrom: { type: DataTypes.DATE, allowNull: true },
+    accessUntil: { type: DataTypes.DATE, allowNull: true },
   },
   { timestamps: true }
 );

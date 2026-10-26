@@ -181,9 +181,11 @@ requests = amplify(id="req_normalize", 1., override="liq_amplify", requests)
 requests.on_track(make_on_track("request"))
 
 # Queued items play ahead of rotation; when the queue empties, AutoDJ resumes.
-# track_sensitive=false so a freshly-queued item takes over promptly.
+# track_sensitive=true: a freshly-queued item waits for the current track to
+# end (like RadioJar's queue) instead of cutting the song off mid-play. The
+# operator can still "play now" by queueing at the front and pressing Skip.
 program =
-  fallback(id="program", track_sensitive=false, [requests, autodj])
+  fallback(id="program", track_sensitive=true, [requests, autodj])
 
 # Smooth crossfades between consecutive tracks / source transitions. Applied
 # above the per-source on_track hooks (which need clean pre-crossfade
@@ -366,17 +368,33 @@ server.register(
 # normalization (already applied upstream) does NOT clobber this master gain.
 music = amplify(id="music_gain", override=null(), {music_gain()}, music)
 
-# Live mix: when the mic (special) has audio, music (normal) fades down to the
-# duck level `p`; when the mic is silent, music returns to full. With
-# music_gain=0 (full takeover) only the mic is heard. When the harbor is not
-# connected, smooth_add simply streams the music bed (no dead air).
-radio =
-  smooth_add(
-    duration=live_fade,
-    p={live_duck()},
-    normal=music,
-    special=live
-  )
+# Live mix (voice-over ducking). While the mic SOURCE is connected the music bed
+# ramps down to `live_duck` (portion of music amplitude kept) over `live_fade`
+# seconds, and ramps back to full when it drops. The mic is mixed at unity.
+#
+# This deliberately replaces stdlib smooth_add, which (a) also attenuates the
+# mic to (1 - p) — so a lighter duck made the DJ's voice quieter — and (b) only
+# samples p at connect, so moving the duck slider mid-show did nothing. Here the
+# duck target is re-read every frame, so slider changes apply immediately.
+duck_current = ref(1.)
+def duck_gain() =
+  target = if live.is_ready() then live_duck() else 1. end
+  step = settings.frame.duration() / live_fade
+  cur = duck_current()
+  next =
+    if cur < target then
+      min(target, cur + step)
+    elsif cur > target then
+      max(target, cur - step)
+    else
+      cur
+    end
+  duck_current := next
+  next
+end
+music = amplify(id="duck", override=null(), duck_gain, music)
+
+radio = add(id="live_mix", normalize=false, [music, live])
 radio = mksafe(radio)
 
 # --- Output ---------------------------------------------------------------

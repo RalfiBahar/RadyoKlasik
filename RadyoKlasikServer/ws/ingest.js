@@ -1,6 +1,6 @@
 const { WebSocketServer } = require("ws");
 const { spawn } = require("child_process");
-const jwt = require("jsonwebtoken");
+const { verifyStaffToken } = require("../services/staffAuth");
 const liveSession = require("../services/liveSession");
 const logger = require("../logger");
 
@@ -13,7 +13,7 @@ const logger = require("../logger");
 // Binary WS messages are raw encoded audio chunks (MediaRecorder webm/opus or
 // ogg/opus) piped to ffmpeg's stdin. Text (JSON) messages are control frames
 // ({ mode, duckLevel, micGain }) applied to the live session. The WS is
-// authenticated by the studio's JWT (?token=) plus the session reservation id
+// authenticated by the studio's staff JWT (?token=) plus the session reservation id
 // (?session=) returned from POST /api/v1/studio/session/start.
 //
 // Mounted with `noServer` + a path-scoped upgrade listener so it coexists with
@@ -37,7 +37,7 @@ function init(server, { path = "/ws/ingest" } = {}) {
   wss = new WebSocketServer({ noServer: true });
   wss.on("connection", handleConnection);
 
-  server.on("upgrade", (req, socket, head) => {
+  server.on("upgrade", async (req, socket, head) => {
     let parsed;
     try {
       parsed = new URL(req.url, "http://localhost");
@@ -49,7 +49,7 @@ function init(server, { path = "/ws/ingest" } = {}) {
 
     const token = parsed.searchParams.get("token");
     const sessionId = parsed.searchParams.get("session");
-    if (!authorize(token, sessionId)) {
+    if (!(await authorize(token, sessionId))) {
       socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
       socket.destroy();
       return;
@@ -64,10 +64,10 @@ function init(server, { path = "/ws/ingest" } = {}) {
   return wss;
 }
 
-function authorize(token, sessionId) {
+async function authorize(token, sessionId) {
   if (!token || !sessionId) return false;
   try {
-    jwt.verify(token, process.env.SECRET_KEY);
+    await verifyStaffToken(token);
   } catch (_) {
     return false;
   }

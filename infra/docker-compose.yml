@@ -123,8 +123,13 @@ services:
       LIVE_FALLBACK_TIMEOUT_MS: ${LIVE_FALLBACK_TIMEOUT_MS:-8000}
       LIVE_DUCK_LEVEL: ${LIVE_DUCK_LEVEL:-0.25}
       LIVE_SILENCE_THRESHOLD: ${LIVE_SILENCE_THRESHOLD:-0.05}
+      # Phase 6 listener analytics.
+      STREAM_PROXY_IP: 172.28.0.10
+      CADDY_STREAM_LOG: /var/log/caddy/stream-access.log
     volumes:
       - media:/var/media
+      # Phase 6: Caddy's stream access log (proxied listener sessions).
+      - caddylogs:/var/log/caddy:ro
       # Bundled clips used to seed a starter rotation into the library.
       - ./liquidsoap/test-media:/srv/test-media:ro
     ports:
@@ -151,10 +156,15 @@ services:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+      # Phase 6: stream access log (real listener IPs) read by the API.
+      - caddylogs:/var/log/caddy
     ports:
       - "80:80"
       - "443:443"
-    networks: [radyonet]
+    networks:
+      radyonet:
+        # Must match STREAM_PROXY_IP for the API (listener analytics).
+        ipv4_address: 172.28.0.10
 
   # Optional S3-compatible object storage for media (Phase 1+).
   # Enable with:  docker compose --profile minio up
@@ -176,8 +186,16 @@ services:
 networks:
   radyonet:
     driver: bridge
+    # Fixed subnet so Caddy has a stable address. Icecast 2.4 can't honour
+    # X-Forwarded-For, so every proxied listener appears as Caddy's IP; the API
+    # uses this address to skip those in the Icecast poller and takes proxied
+    # sessions (with real IPs) from Caddy's access log instead (Phase 6).
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
 
 volumes:
+  caddylogs:
   pgdata:
   media:
   caddy_data:

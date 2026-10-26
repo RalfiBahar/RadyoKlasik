@@ -13,6 +13,10 @@ const playlistRoutes = require("./routes/playlistRoutes");
 const playoutRoutes = require("./routes/playoutRoutes");
 const queueRoutes = require("./routes/queueRoutes");
 const studioRoutes = require("./routes/studioRoutes");
+const userRoutes = require("./routes/userRoutes");
+const showRoutes = require("./routes/showRoutes");
+const scheduleRoutes = require("./routes/scheduleRoutes");
+const analyticsRoutes = require("./routes/analyticsRoutes");
 const playoutController = require("./controllers/playoutController");
 const path = require("path");
 const { sequelize } = require("./config/database");
@@ -88,6 +92,10 @@ app.use("/api/v1/playlists", playlistRoutes);
 app.use("/api/v1/playout", playoutRoutes);
 app.use("/api/v1/queue", queueRoutes);
 app.use("/api/v1/studio", studioRoutes);
+app.use("/api/v1/users", userRoutes);
+app.use("/api/v1/shows", showRoutes);
+app.use("/api/v1/analytics", analyticsRoutes);
+app.use("/api/v1", scheduleRoutes);
 // Public now-playing (no /api/v1 prefix) — consumed by the web + mobile players.
 app.get("/playout/nowplaying", playoutController.nowplaying);
 app.use("/auth", authRoutes);
@@ -99,8 +107,11 @@ app.use("/chat", chatRoutes);
 // Schema is managed by migrations (single source of truth) instead of
 // per-model sequelize.sync(), removing the Phase 0 duplicate-table race.
 // Skipped under test, where the harness controls migration timing.
+// `app.ready` resolves once migrations (and the seed) are done, so boot-time
+// readers of new tables (settings, scheduler) wait for them.
+app.ready = Promise.resolve();
 if (process.env.NODE_ENV !== "test") {
-  (async () => {
+  app.ready = (async () => {
     try {
       await runMigrations();
     } catch (error) {

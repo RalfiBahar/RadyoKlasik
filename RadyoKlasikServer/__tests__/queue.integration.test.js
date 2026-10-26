@@ -85,7 +85,7 @@ afterAll(async () => {
     where: { trackId: [trackA.id, trackB.id, trackC.id] },
   });
   await Track.destroy({ where: { id: [trackA.id, trackB.id, trackC.id] } });
-  autopilot.set(true);
+  await autopilot.set(true);
   await new Promise((resolve) => server.close(resolve));
   await sequelize.close();
 });
@@ -95,7 +95,7 @@ beforeEach(async () => {
   liquidsoap.command.mockClear();
   liquidsoap.pushRequest.mockClear();
   liquidsoap.setVar.mockClear();
-  autopilot.set(true);
+  await autopilot.set(true);
 });
 
 describe("auth", () => {
@@ -120,7 +120,7 @@ describe("GET /api/v1/queue", () => {
   });
 
   test("omits AutoDJ preview items when autopilot is off", async () => {
-    autopilot.set(false);
+    await autopilot.set(false);
     const res = await request(app)
       .get("/api/v1/queue")
       .set("Authorization", AUTH);
@@ -336,7 +336,9 @@ describe("POST /api/v1/playout/autopilot", () => {
 
 describe("/ws/studio broadcasts queue:update", () => {
   test("a connected client receives queue:update on a queue change", async () => {
-    const ws = new WebSocket(`ws://127.0.0.1:${wsPort}/ws/studio`);
+    const ws = new WebSocket(
+      `ws://127.0.0.1:${wsPort}/ws/studio?token=${AUTH.slice(7)}`
+    );
     await new Promise((resolve, reject) => {
       ws.on("open", resolve);
       ws.on("error", reject);

@@ -1,13 +1,15 @@
 const express = require("express");
-const { tokenRequired } = require("../middlewares/authMiddleware");
+const { staffRequired } = require("../services/staffAuth");
+
+const staff = staffRequired();
 const queue = require("../controllers/queueController");
 
 const router = express.Router();
 
 // All queue endpoints are operator-only (JWT).
-router.get("/", tokenRequired, queue.list);
-router.post("/", tokenRequired, queue.add);
-router.patch("/reorder", tokenRequired, queue.reorder);
-router.delete("/:id", tokenRequired, queue.remove);
+router.get("/", staff, queue.list);
+router.post("/", staff, queue.add);
+router.patch("/reorder", staff, queue.reorder);
+router.delete("/:id", staff, queue.remove);
 
 module.exports = router;

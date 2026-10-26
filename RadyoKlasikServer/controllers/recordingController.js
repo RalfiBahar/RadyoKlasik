@@ -15,6 +15,22 @@ const { Sequelize } = require("sequelize");
 const { spawn } = require("child_process");
 const convertToHttps = require("../utils/convertToHttps");
 const logger = require("../logger");
+
+// Self-hosted stream sources (RadioJar retired). The recorder pulls the air
+// mix from Icecast over the private compose network; listeners/mobile get the
+// public URL from /get_redirect.
+function recordStreamUrl() {
+  if (process.env.RECORD_STREAM_URL) return process.env.RECORD_STREAM_URL;
+  const host = process.env.ICECAST_HOST || "icecast";
+  const port = process.env.ICECAST_PORT || 8000;
+  return `http://${host}:${port}/stream`;
+}
+
+function publicStreamUrl() {
+  return (
+    process.env.PUBLIC_STREAM_URL || "https://stream.radyoklasik.online/stream"
+  );
+}
 const router = Router();
 const upload = multer();
 
@@ -71,7 +87,7 @@ router.post("/start", tokenRequired, (req, res) => {
     return res.status(400).json({ message: "Recording already in progress" });
   }
 
-  const url = "http://stream.radiojar.com/bw66d94ksg8uv";
+  const url = recordStreamUrl();
 
   const scriptPath = path.join(__dirname, "..", "record.js");
   recordingProcess = spawn("node", [scriptPath, url], {
@@ -254,7 +270,7 @@ router.get("/recordings", tokenRequired, async (req, res) => {
 });
 
 router.get("/get_redirect", tokenRequired, async (req, res) => {
-  const baseUrl = "http://stream.radiojar.com/bw66d94ksg8uv";
+  const baseUrl = publicStreamUrl();
   try {
     const finalUrl = await getFinalMp3Url(baseUrl);
     if (finalUrl) {
@@ -279,6 +295,9 @@ async function getFinalMp3Url(baseUrl) {
 
     return new Promise((resolve, reject) => {
       const conn = require(scheme).request(parsedUrl.href, (response) => {
+        // Only the status/headers matter; never consume a live stream body
+        // (an Icecast mount is an endless response).
+        response.destroy();
         if ([301, 302, 303, 307, 308].includes(response.statusCode)) {
           const redirectUrl = response.headers.location;
           if (redirectUrl) {

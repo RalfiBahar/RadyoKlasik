@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useStudioRealtime } from "@/lib/useStudio";
 import { formatClock } from "@/lib/format";
+import { stationNow, stationTime } from "@/lib/schedule";
 import { Badge } from "@/components/ui";
 import StudioPlayer from "./StudioPlayer";
-import TransportControls, { Toggle } from "./TransportControls";
+import TransportControls from "./TransportControls";
 import Monitor from "./Monitor";
 import MicControl from "./MicControl";
 import LibraryBrowser from "./LibraryBrowser";
@@ -14,17 +15,29 @@ import QueuePanel from "./QueuePanel";
 
 export default function StudioConsole() {
   const { token } = useAuth();
-  const { queue, studio, status, connected, refreshQueue, refreshStudio, refreshStatus } =
-    useStudioRealtime();
+  const {
+    queue,
+    studio,
+    status,
+    connected,
+    schedule,
+    access,
+    refreshQueue,
+    refreshStudio,
+    refreshStatus,
+  } = useStudioRealtime();
+  const slot = schedule?.active ?? null;
 
-  const [lobby, setLobby] = useState(false);
-  const [facebook, setFacebook] = useState(false);
   const [clock, setClock] = useState(0);
+  const tzRef = useRef("Europe/Istanbul");
+  if (schedule?.timezone) tzRef.current = schedule.timezone;
 
   useEffect(() => {
     const tick = () => {
+      // Station time (the schedule's timezone), not the DJ's browser time.
       const now = new Date();
-      setClock(now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds());
+      const local = stationNow(tzRef.current, now);
+      setClock(local.minute * 60 + now.getSeconds());
     };
     tick();
     const id = setInterval(tick, 1000);
@@ -52,36 +65,55 @@ export default function StudioConsole() {
 
   const onQueueChanged = () => refreshQueue();
 
+  // Station air state for the top bar: a live DJ, AutoDJ/queue audio, or
+  // genuine dead air (autopilot off + empty queue).
+  const airLabel = onAir ? "LIVE" : nowPlaying ? "ON AIR" : "OFF AIR";
+  const airClass = onAir
+    ? "bg-red-600 text-white"
+    : nowPlaying
+      ? "bg-brand/20 text-brand"
+      : "bg-ink-700 text-slate-400";
+  const dotClass = onAir ? "bg-white animate-pulse" : nowPlaying ? "bg-brand" : "bg-slate-500";
+
   return (
     <div className="flex h-full flex-col">
       {/* Top bar */}
       <header className="flex items-center justify-between gap-4 border-b border-ink-700 bg-ink-800 px-4 py-2">
         <div className="flex items-center gap-3">
           <span
-            className={`flex items-center gap-2 rounded px-2 py-1 text-xs font-bold ${
-              onAir ? "bg-red-600 text-white" : "bg-ink-700 text-slate-400"
-            }`}
+            className={`flex items-center gap-2 rounded px-2 py-1 text-xs font-bold ${airClass}`}
+            data-testid="air-state"
           >
-            <span className={`h-2 w-2 rounded-full ${onAir ? "bg-white" : "bg-slate-500"}`} />
-            {onAir ? "ON AIR" : "OFF AIR"}
+            <span className={`h-2 w-2 rounded-full ${dotClass}`} />
+            {airLabel}
+            {!onAir && nowPlaying && (
+              <span className="font-normal opacity-80">
+                · {nowPlaying.source === "request" ? "QUEUE" : "AUTODJ"}
+              </span>
+            )}
           </span>
           <span className="font-mono text-lg tabular-nums text-slate-200">
             {formatClock(clock)}
           </span>
+          {slot && (
+            <span
+              className="flex items-center gap-2 rounded border border-ink-600 px-2 py-1 text-xs text-slate-300"
+              data-testid="schedule-now"
+            >
+              <span className="h-2 w-2 rounded-full" style={{ background: slot.color || "#f4632e" }} />
+              <span className="font-semibold text-slate-100">{slot.title}</span>
+              {slot.endsAt && (
+                <span className="text-slate-500">
+                  until {stationTime(slot.endsAt, schedule?.timezone || "Europe/Istanbul")}
+                </span>
+              )}
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-4">
-          <Toggle label="Lobby" on={lobby} onClick={() => setLobby((v) => !v)} />
-          <Toggle label="Facebook" on={facebook} onClick={() => setFacebook((v) => !v)} />
-          <button
-            className="text-slate-400 hover:text-slate-200"
-            title="Settings (Phase 7)"
-            aria-label="Settings"
-          >
-            ⚙
-          </button>
           <Badge tone={connected ? "green" : "neutral"}>
-            {connected ? "WS live" : "WS offline"}
+            {connected ? "Connected" : "Reconnecting…"}
           </Badge>
         </div>
       </header>
@@ -121,6 +153,7 @@ export default function StudioConsole() {
             <MicControl
               studio={studio}
               token={token}
+              access={access}
               onChanged={() => {
                 refreshStudio();
                 refreshStatus();

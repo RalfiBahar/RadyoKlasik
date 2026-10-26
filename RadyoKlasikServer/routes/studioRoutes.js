@@ -1,13 +1,16 @@
 const express = require("express");
-const { tokenRequired } = require("../middlewares/authMiddleware");
+const { staffRequired } = require("../services/staffAuth");
+
+const staff = staffRequired();
 const studio = require("../controllers/studioController");
 
 const router = express.Router();
 
 // Phase 4 live studio session control (operator JWT).
-router.get("/session", tokenRequired, studio.state);
-router.post("/session/start", tokenRequired, studio.start);
-router.post("/session/stop", tokenRequired, studio.stop);
-router.post("/session/mode", tokenRequired, studio.mode);
+router.get("/session", staff, studio.state);
+router.get("/access", staff, studio.access);
+router.post("/session/start", staff, studio.start);
+router.post("/session/stop", staff, studio.stop);
+router.post("/session/mode", staff, studio.mode);
 
 module.exports = router;

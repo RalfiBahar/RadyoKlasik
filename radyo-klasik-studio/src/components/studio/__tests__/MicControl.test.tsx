@@ -98,18 +98,29 @@ describe("MicControl — toggling drives session/start + ingest WS", () => {
     });
   });
 
-  it("stops the reserved studio session if microphone capture fails", async () => {
+  it("never reserves a studio session if microphone capture fails", async () => {
     (mic.captureMic as ReturnType<typeof vi.fn>).mockRejectedValue(
-      new Error("Permission denied")
+      new DOMException("denied", "NotAllowedError")
     );
 
     render(<MicControl studio={idle} token="jwt.tok" onChanged={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: /Turn microphone on/ }));
 
-    await waitFor(() => expect(api.startStudioSession).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(api.stopStudioSession).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText(/Microphone access was blocked/)).toBeInTheDocument();
+    expect(api.startStudioSession).not.toHaveBeenCalled();
+    expect(api.stopStudioSession).not.toHaveBeenCalled();
     expect(mic.connectIngest).not.toHaveBeenCalled();
-    expect(await screen.findByText("Permission denied")).toBeInTheDocument();
+  });
+
+  it("asks for the microphone before reserving the session", async () => {
+    render(<MicControl studio={idle} token="jwt.tok" onChanged={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /Turn microphone on/ }));
+
+    await waitFor(() => expect(api.startStudioSession).toHaveBeenCalledTimes(1));
+    const micOrder = (mic.captureMic as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
+    const sessionOrder = (api.startStudioSession as ReturnType<typeof vi.fn>).mock
+      .invocationCallOrder[0];
+    expect(micOrder).toBeLessThan(sessionOrder);
   });
 
   it("turning the mic OFF stops the session", async () => {

@@ -182,21 +182,8 @@ async function getState() {
         "duration",
         "artworkPath",
       ];
-      const [songs, jingles] = await Promise.all([
-        Track.findAll({ where: { type: "song" }, attributes }),
-        Track.findAll({ where: { type: "jingle" }, attributes }),
-      ]);
-      const previewState = np?.trackId
-        ? { ...rotation.getState(), lastSongId: np.trackId }
-        : rotation.getState();
-      autodjItems = rotation
-        .preview(
-          { songs, jingles },
-          Number(process.env.AUTODJ_PREVIEW_COUNT || 8),
-          undefined,
-          previewState
-        )
-        .map(serializeAutodjPreview);
+      const pools = await require("./scheduler").rotationPools(attributes);
+      autodjItems = rotation.upcoming(pools).map(serializeAutodjPreview);
     } catch (err) {
       logger.warn("queueSync.getState: AutoDJ preview failed", {
         error: String(err),

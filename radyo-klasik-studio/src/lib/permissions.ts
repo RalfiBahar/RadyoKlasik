@@ -1,21 +1,30 @@
 import type { Role } from "./types";
 
-// Route-guard policy (client-side; Phase 7 will move this server-side with real
-// role claims). Mirrors the Phase 5 spec:
+// Client-side route guards (UX only — the API enforces the same roles on every
+// request since Phase 7):
 //   - admin: everything
-//   - dj:    studio + library + dashboard + own shows (scheduling view)
+//   - dj:    studio + library + playlists + dashboard + schedule (read-only)
 //   - guest: time-boxed studio access only
 export type Section =
   | "dashboard"
   | "library"
+  | "playlists"
   | "studio"
   | "analytics"
   | "scheduling"
   | "djs";
 
 const ACCESS: Record<Role, Section[]> = {
-  admin: ["dashboard", "library", "studio", "analytics", "scheduling", "djs"],
-  dj: ["dashboard", "library", "studio", "scheduling"],
+  admin: [
+    "dashboard",
+    "library",
+    "playlists",
+    "studio",
+    "analytics",
+    "scheduling",
+    "djs",
+  ],
+  dj: ["dashboard", "library", "playlists", "studio", "scheduling"],
   guest: ["studio"],
 };
 

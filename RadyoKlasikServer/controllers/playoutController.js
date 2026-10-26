@@ -1,5 +1,6 @@
 const { Track, PlayHistory } = require("../models");
 const rotation = require("../services/rotation");
+const scheduler = require("../services/scheduler");
 const nowPlaying = require("../services/nowPlaying");
 const autopilot = require("../services/autopilot");
 const queueSync = require("../services/queueSync");
@@ -29,12 +30,11 @@ exports.next = async (req, res) => {
       "filePath",
       "replaygain",
     ];
-    const [songs, jingles] = await Promise.all([
-      Track.findAll({ where: { type: "song" }, attributes }),
-      Track.findAll({ where: { type: "jingle" }, attributes }),
-    ]);
+    // Phase 7: the schedule decides the pool (a scheduled playlist or the
+    // whole library); break cadence comes from station settings.
+    const pools = await scheduler.rotationPools(attributes);
 
-    const { item, kind } = rotation.advance({ songs, jingles });
+    const { item, kind } = rotation.takeNext(pools);
     if (!item) {
       logger.warn("playout/next: empty rotation (no tracks in library)");
       return res.status(404).type("text/plain").send("");
@@ -86,6 +86,8 @@ exports.metadata = async (req, res) => {
     } else {
       np = nowPlaying.set({ title, artist, album, thumb, source, trackId });
     }
+
+    if (source === "autodj" && trackId) rotation.markAired(trackId);
 
     await PlayHistory.create({ trackId, source, startedAt: new Date() });
     if (trackId) {
@@ -177,9 +179,19 @@ exports.nowplaying = async (req, res) => {
     album: np ? np.album : null,
     artist: np ? np.artist : null,
     title: np ? np.title : null,
-    thumb: np ? np.thumb : null,
+    thumb: np ? absoluteMediaUrl(req, np.thumb) : null,
   });
 };
+
+// Listener apps live on other origins (Vercel web, mobile), so a relative
+// `/media/...` artwork path must be made absolute against the API's public URL.
+function absoluteMediaUrl(req, thumb) {
+  if (!thumb || !thumb.startsWith("/")) return thumb || null;
+  const base =
+    process.env.PUBLIC_API_URL ||
+    `${req.get("x-forwarded-proto") || req.protocol}://${req.get("host")}`;
+  return `${base.replace(/\/$/, "")}${thumb}`;
+}
 
 // GET /api/v1/playout/status  (operator; JWT-protected)
 exports.status = async (req, res) => {
@@ -237,7 +249,7 @@ exports.autopilot = async (req, res) => {
   if (typeof body.enabled !== "boolean") {
     return res.status(400).json({ error: "enabled (boolean) is required" });
   }
-  autopilot.set(body.enabled);
+  await autopilot.set(body.enabled);
   // Mirror the flag into Liquidsoap so the emergency failover is gated to
   // automation only: OFF => the chain falls through to silence when nothing is
   // queued/live (instead of the emergency playlist). Best-effort.

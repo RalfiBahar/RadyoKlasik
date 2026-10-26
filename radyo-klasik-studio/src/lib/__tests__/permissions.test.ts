@@ -10,6 +10,7 @@ describe("permissions / route guards by role", () => {
     for (const s of [
       "dashboard",
       "library",
+      "playlists",
       "studio",
       "analytics",
       "scheduling",
@@ -19,8 +20,9 @@ describe("permissions / route guards by role", () => {
     }
   });
 
-  it("dj sees studio + library + dashboard + scheduling, not analytics/djs", () => {
+  it("dj sees studio + library + playlists + dashboard + scheduling, not analytics/djs", () => {
     expect(canAccess("dj", "studio")).toBe(true);
+    expect(canAccess("dj", "playlists")).toBe(true);
     expect(canAccess("dj", "library")).toBe(true);
     expect(canAccess("dj", "dashboard")).toBe(true);
     expect(canAccess("dj", "scheduling")).toBe(true);

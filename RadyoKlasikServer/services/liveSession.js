@@ -37,6 +37,12 @@ const VAR_MIC_GAIN = "live_mic_gain";
 const DEFAULT_DUCK = Number(process.env.LIVE_DUCK_LEVEL || 0.25);
 const DEFAULT_THRESHOLD = Number(process.env.LIVE_SILENCE_THRESHOLD || 0.05);
 const DEFAULT_TIMEOUT_MS = Number(process.env.LIVE_FALLBACK_TIMEOUT_MS || 8000);
+// A reserved session whose mic audio never reaches the harbor (permission
+// prompt ignored, tab closed, ingest failed) is released after this window so
+// it can't block the studio for other DJs.
+function connectTimeoutMs() {
+  return Number(process.env.LIVE_CONNECT_TIMEOUT_MS || 30000);
+}
 
 // --- Pure helpers (unit-tested without the stack) -------------------------
 
@@ -119,6 +125,7 @@ let session = null; // { id, userId, show, dj, mode, prefs, startedAt }
 let onAir = false; // true once the harbor SOURCE is actually connected
 let levels = { mic: 0 };
 let failbackTimer = null;
+let connectTimer = null;
 let levelTimer = null;
 
 function isActive() {
@@ -152,7 +159,11 @@ function broadcastState() {
 // Push the interactive vars for `mode` to Liquidsoap (best-effort; logs on
 // failure so a telnet hiccup never throws into a request handler).
 async function applyVars(mode, prefs) {
-  const vars = modeVars(mode, prefs);
+  // Until the mic is actually flowing, never cut the music: a full takeover
+  // (music_gain 0) only takes effect once the harbor SOURCE connects, so a
+  // pending permission prompt or a failed ingest can't put dead air on air.
+  const effective = mode === STATES.LIVE && !onAir ? STATES.VOICEOVER : mode;
+  const vars = modeVars(effective, prefs);
   for (const [name, value] of Object.entries(vars)) {
     try {
       await liquidsoap.command(`var.set ${name} = ${formatVar(value)}`);
@@ -174,7 +185,13 @@ function formatVar(value) {
 
 // Start (reserve) a live session and configure Liquidsoap for the chosen mode.
 // Returns the ingest endpoint + the resolved per-DJ prefs.
-async function start({ userId = null, mode = STATES.VOICEOVER, show = null, dj = null } = {}) {
+async function start({
+  userId = null,
+  mode = STATES.VOICEOVER,
+  show = null,
+  showId = null,
+  dj = null,
+} = {}) {
   if (!MODES.has(mode)) {
     const err = new Error(`invalid mode: ${mode}`);
     err.code = "INVALID_MODE";
@@ -198,7 +215,9 @@ async function start({ userId = null, mode = STATES.VOICEOVER, show = null, dj =
     id: crypto.randomUUID(),
     userId,
     show: show || "Live Show",
+    showId,
     dj: dj || "Live DJ",
+    episodeLogged: false,
     mode: next,
     prefs,
     startedAt: new Date().toISOString(),
@@ -208,6 +227,7 @@ async function start({ userId = null, mode = STATES.VOICEOVER, show = null, dj =
   levels = { mic: 0 };
 
   await applyVars(state, prefs);
+  armConnectTimeout(session.id);
   broadcastState();
   logger.info("liveSession started", { sessionId: session.id, mode: state });
 
@@ -233,7 +253,15 @@ async function onHarborConnected() {
     return getState();
   }
   clearFailback();
+  clearConnectTimeout();
   onAir = true;
+  // Now that audio is flowing, apply the real mode (e.g. full takeover cut).
+  await applyVars(state, session.prefs);
+  // Remember the music-bed track that was airing so going off air restores it
+  // even when no track change happens during the broadcast (later on_track
+  // updates during the show overwrite this shadow).
+  const prev = nowPlaying.get();
+  if (prev && prev.source !== "live") nowPlaying.setShadow(prev);
   // Now-playing reflects the live show while on air.
   nowPlaying.set({
     title: session.show,
@@ -244,6 +272,7 @@ async function onHarborConnected() {
     trackId: null,
   });
   await recordLivePlay();
+  await recordEpisode();
   startLevelLoop();
   broadcastState();
   logger.info("liveSession on air", { sessionId: session.id });
@@ -332,6 +361,7 @@ async function stop() {
 
 function finalizeIdle() {
   clearFailback();
+  clearConnectTimeout();
   stopLevelLoop();
   const had = isActive();
   state = STATES.IDLE;
@@ -375,10 +405,51 @@ async function recordLivePlay() {
   }
 }
 
+// First time a scheduled show's session actually reaches air, log an Episode
+// (Phase 7 show history). Reconnects within the same session don't duplicate.
+async function recordEpisode() {
+  if (!session || !session.showId || session.episodeLogged) return;
+  session.episodeLogged = true;
+  try {
+    const { Episode } = require("../models");
+    const now = new Date();
+    await Episode.create({
+      showId: session.showId,
+      title: `${session.show} — ${now.toISOString().slice(0, 10)}`,
+      description: session.dj ? `Live with ${session.dj}` : null,
+      airedAt: now,
+    });
+  } catch (err) {
+    logger.warn("liveSession: Episode write failed", { error: String(err) });
+  }
+}
+
 function clearFailback() {
   if (failbackTimer) {
     clearTimeout(failbackTimer);
     failbackTimer = null;
+  }
+}
+
+function armConnectTimeout(sessionId) {
+  clearConnectTimeout();
+  const timeoutMs = connectTimeoutMs();
+  connectTimer = setTimeout(() => {
+    if (session && session.id === sessionId && !onAir) {
+      logger.info("liveSession: mic never connected, releasing session", {
+        sessionId,
+        timeoutMs,
+      });
+      finalizeIdle();
+    }
+  }, timeoutMs);
+  if (connectTimer.unref) connectTimer.unref();
+}
+
+function clearConnectTimeout() {
+  if (connectTimer) {
+    clearTimeout(connectTimer);
+    connectTimer = null;
   }
 }
 

@@ -19,8 +19,12 @@ export async function captureMic(
     throw new Error("Microphone capture is not supported in this browser");
   }
   const audio: MediaTrackConstraints = {
+    // Broadcast voice: keep echo cancellation (DJs often monitor on speakers)
+    // but disable browser AGC, which audibly "pumps" the voice level and
+    // fights the server-side mic gain / ducking.
     echoCancellation: true,
     noiseSuppression: true,
+    autoGainControl: false,
   };
   if (deviceId) audio.deviceId = { exact: deviceId };
   return navigator.mediaDevices.getUserMedia({ audio, video: false });

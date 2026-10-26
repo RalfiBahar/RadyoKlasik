@@ -1,20 +1,41 @@
 const liveSession = require("../services/liveSession");
+const scheduler = require("../services/scheduler");
+const { ENV_ADMIN_ID } = require("../services/staffAuth");
 const logger = require("../logger");
 
 // Phase 4 — Virtual Studio live session control (operator; JWT-protected).
 // Reserves/releases the Liquidsoap /live mount and returns the ingest endpoint
 // the studio browser uses to bridge mic audio (ws/ingest.js).
 
-// POST /api/v1/studio/session/start { mode?, userId?, show?, dj? }
+// GET /api/v1/studio/access -> { allowed, reason, show } for the caller.
+exports.access = async (req, res) => {
+  try {
+    return res.json(await scheduler.liveAccess(req.user));
+  } catch (err) {
+    logger.error("studio access check failed", { error: String(err) });
+    return res.status(500).json({ error: String(err) });
+  }
+};
+
+// POST /api/v1/studio/session/start { mode?, show?, dj? }
+// The DJ identity comes from the staff token (per-DJ mic prefs, episode log);
+// whether they may go live right now is decided by the schedule (Phase 7).
 exports.start = async (req, res) => {
   try {
     const body = req.body || {};
     const mode = body.mode || liveSession.STATES.VOICEOVER;
+    const access = await scheduler.liveAccess(req.user);
+    if (!access.allowed) {
+      return res.status(403).json({ error: access.reason });
+    }
+    const user = req.user || {};
+    const userId = user.id && user.id !== ENV_ADMIN_ID ? user.id : null;
     const result = await liveSession.start({
-      userId: body.userId || null,
+      userId,
       mode,
-      show: body.show || null,
-      dj: body.dj || null,
+      show: body.show || (access.show && access.show.title) || null,
+      showId: access.show ? access.show.id : null,
+      dj: body.dj || user.name || null,
     });
     return res.status(201).json(result);
   } catch (err) {

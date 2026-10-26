@@ -10,9 +10,30 @@
 	email {$CADDY_EMAIL:admin@radyoklasik.online}
 }
 
-# Icecast stream distribution.
-{$STREAM_DOMAIN:stream.radyoklasik.online} {
+# Icecast stream distribution. The JSON access log is the source of listener
+# sessions (real client IP, user agent, duration, bytes) for Phase 6 analytics,
+# because Icecast 2.4 only ever sees Caddy's address. Behind a CDN/proxy such
+# as Cloudflare, add `trusted_proxies` in the global options so client_ip is
+# the listener rather than the CDN edge.
+(stream_site) {
+	log {
+		output file /var/log/caddy/stream-access.log {
+			roll_size 50MiB
+			roll_keep 5
+		}
+		format json
+	}
 	reverse_proxy icecast:8000
+}
+
+{$STREAM_DOMAIN:stream.radyoklasik.online} {
+	import stream_site
+}
+
+# Local testing of the proxied stream path without TLS:
+#   curl -H "Host: stream.localhost" http://localhost/stream
+http://stream.localhost {
+	import stream_site
 }
 
 # Node control-plane API.

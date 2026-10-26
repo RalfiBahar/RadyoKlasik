@@ -1,5 +1,8 @@
 const express = require("express");
-const { tokenRequired } = require("../middlewares/authMiddleware");
+const { staffRequired } = require("../services/staffAuth");
+
+const staff = staffRequired();
+const editors = staffRequired("admin", "dj");
 const { internalOnly } = require("../middlewares/internalAuth");
 const playout = require("../controllers/playoutController");
 
@@ -12,10 +15,10 @@ router.post("/harbor", internalOnly, playout.harbor);
 router.post("/airstate", internalOnly, playout.airstate);
 
 // Operator status (JWT-protected).
-router.get("/status", tokenRequired, playout.status);
+router.get("/status", staff, playout.status);
 
 // Phase 3 transport controls (JWT-protected).
-router.post("/skip", tokenRequired, playout.skip);
-router.post("/autopilot", tokenRequired, playout.autopilot);
+router.post("/skip", staff, playout.skip);
+router.post("/autopilot", editors, playout.autopilot);
 
 module.exports = router;

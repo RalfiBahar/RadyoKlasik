@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
-  generateToken,
+  studioLogin,
   listTracks,
   reorderQueue,
   setAutopilot,
@@ -74,12 +74,14 @@ describe("api client", () => {
     expect(JSON.parse(opts.body)).toMatchObject({ mode: "voiceover", dj: "Ada" });
   });
 
-  it("generateToken does NOT send auth and returns the access token", async () => {
+  it("studioLogin posts credentials without auth and returns the token", async () => {
     const fetchMock = mockFetchOnce({ access_token: "new.jwt.here" });
     vi.stubGlobal("fetch", fetchMock);
-    const tok = await generateToken("dev-shared");
+    const tok = await studioLogin("nova", "s3cret-pass");
     expect(tok).toBe("new.jwt.here");
-    const [, opts] = fetchMock.mock.calls[0];
+    const [url, opts] = fetchMock.mock.calls[0];
+    expect(url).toBe("/auth/studio_login");
+    expect(JSON.parse(opts.body)).toEqual({ username: "nova", password: "s3cret-pass" });
     expect(opts.headers.Authorization).toBeUndefined();
   });
 

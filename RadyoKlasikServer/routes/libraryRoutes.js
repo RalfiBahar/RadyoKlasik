@@ -1,6 +1,9 @@
 const express = require("express");
 const multer = require("multer");
-const { tokenRequired } = require("../middlewares/authMiddleware");
+const { staffRequired } = require("../services/staffAuth");
+
+const staff = staffRequired();
+const editors = staffRequired("admin", "dj");
 const library = require("../controllers/libraryController");
 
 const router = express.Router();
@@ -16,12 +19,12 @@ const uploadFields = upload.fields([
   { name: "artwork", maxCount: 1 },
 ]);
 
-router.get("/tracks", tokenRequired, library.listTracks);
-router.get("/tracks/:id/waveform", tokenRequired, library.getWaveform);
-router.get("/tracks/:id", tokenRequired, library.getTrack);
-router.post("/tracks", tokenRequired, uploadFields, library.uploadTrack);
-router.patch("/tracks/:id", tokenRequired, library.updateTrack);
-router.delete("/tracks/:id", tokenRequired, library.deleteTrack);
-router.post("/bulk", tokenRequired, library.bulk);
+router.get("/tracks", staff, library.listTracks);
+router.get("/tracks/:id/waveform", staff, library.getWaveform);
+router.get("/tracks/:id", staff, library.getTrack);
+router.post("/tracks", editors, uploadFields, library.uploadTrack);
+router.patch("/tracks/:id", editors, library.updateTrack);
+router.delete("/tracks/:id", editors, library.deleteTrack);
+router.post("/bulk", editors, library.bulk);
 
 module.exports = router;

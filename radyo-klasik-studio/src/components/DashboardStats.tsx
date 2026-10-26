@@ -2,13 +2,16 @@
 
 import { useEffect, useState } from "react";
 import {
+  getLiveAnalytics,
   getNowPlaying,
   getPlayoutStatus,
   type NowPlayingPublic,
 } from "@/lib/api";
-import type { PlayoutStatus } from "@/lib/types";
+import type { LiveAnalytics, PlayoutStatus } from "@/lib/types";
 import { formatClock } from "@/lib/format";
-import { Badge, StatCard, ComingSoon } from "@/components/ui";
+import { countryFlag, countryName } from "@/lib/geo";
+import { stationTime } from "@/lib/schedule";
+import { Badge, EmptyState, StatCard } from "@/components/ui";
 
 const BROADCAST = {
   host: process.env.NEXT_PUBLIC_BROADCAST_HOST || "stream.radyoklasik.online",
@@ -22,16 +25,22 @@ const BROADCAST = {
 export default function DashboardStats() {
   const [status, setStatus] = useState<PlayoutStatus | null>(null);
   const [np, setNp] = useState<NowPlayingPublic | null>(null);
+  const [live, setLive] = useState<LiveAnalytics | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
     const tick = async () => {
       try {
-        const [s, n] = await Promise.all([getPlayoutStatus(), getNowPlaying()]);
+        const [s, n, l] = await Promise.all([
+          getPlayoutStatus(),
+          getNowPlaying(),
+          getLiveAnalytics().catch(() => null),
+        ]);
         if (!active) return;
         setStatus(s);
         setNp(n);
+        setLive(l);
         setError(null);
       } catch (err) {
         if (active) setError(err instanceof Error ? err.message : "Failed to load");
@@ -53,7 +62,7 @@ export default function DashboardStats() {
         </div>
       )}
 
-      {/* KPIs — live where available, stubbed (Phase 6) where not. */}
+      {/* KPIs */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           label="Online listeners"
@@ -64,7 +73,15 @@ export default function DashboardStats() {
         <StatCard
           label="Source"
           value={
-            <span className="capitalize">{status?.source ?? "—"}</span>
+            <span>
+              {status?.source === "autodj"
+                ? "AutoDJ"
+                : status?.source === "request"
+                  ? "Queue"
+                  : status?.source === "live"
+                    ? "Live"
+                    : "—"}
+            </span>
           }
           hint={status?.autopilot ? "Autopilot ON" : "Autopilot OFF"}
         />
@@ -75,8 +92,8 @@ export default function DashboardStats() {
         />
         <StatCard
           label="Countries"
-          value="—"
-          hint="Phase 6 analytics"
+          value={live ? live.countries24h.length : "—"}
+          hint="Listener countries, last 24 h"
         />
       </div>
 
@@ -116,7 +133,24 @@ export default function DashboardStats() {
           <h3 className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-slate-500">
             Last played tracks
           </h3>
-          <ComingSoon feature="Play history & track reports" phase="Phase 6" />
+          {live && live.lastPlayed.length > 0 ? (
+            <ul className="space-y-1 text-sm">
+              {live.lastPlayed.map((p) => (
+                <li key={p.startedAt} className="flex items-center gap-2">
+                  <span className="w-12 shrink-0 tabular-nums text-xs text-slate-500">
+                    {stationTime(p.startedAt, live.timezone)}
+                  </span>
+                  <span className="truncate text-slate-200">{p.title || "Unknown"}</span>
+                  {p.artist && <span className="truncate text-slate-500">— {p.artist}</span>}
+                  {p.source !== "autodj" && (
+                    <Badge tone={p.source === "live" ? "red" : "blue"}>{p.source}</Badge>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState>Nothing has played yet.</EmptyState>
+          )}
         </section>
 
         {/* Broadcast link settings (read-only) */}
@@ -141,12 +175,33 @@ export default function DashboardStats() {
         </section>
       </div>
 
-      {/* World map / regional heat — Phase 6 */}
+      {/* Where listeners are (last 24 h) */}
       <section className="card">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">
-          Listener map
+          Top countries · last 24 h
         </h2>
-        <ComingSoon feature="Regional listener heat map" phase="Phase 6" />
+        {live && live.countries24h.length > 0 ? (
+          <ul className="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+            {live.countries24h.map((c) => {
+              const max = live.countries24h[0].sessions || 1;
+              return (
+                <li key={c.country} title={`${c.sessions} sessions`}>
+                  <div className="mb-0.5 flex justify-between text-sm">
+                    <span className="text-slate-200">
+                      {countryFlag(c.country)} {countryName(c.country)}
+                    </span>
+                    <span className="tabular-nums text-slate-400">{c.sessions}</span>
+                  </div>
+                  <div className="h-1.5 rounded bg-ink-700">
+                    <div className="h-full rounded bg-brand/80" style={{ width: `${(c.sessions / max) * 100}%` }} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <EmptyState>No listener sessions with a known country in the last 24 hours.</EmptyState>
+        )}
       </section>
     </div>
   );

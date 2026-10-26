@@ -1,6 +1,12 @@
 const { WebSocketServer } = require("ws");
 const logger = require("../logger");
 
+// Studio clients must present a staff JWT (?token=); the public shared-secret
+// token is rejected (Phase 7).
+function verify(token) {
+  return require("../services/staffAuth").verifyStaffToken(token);
+}
+
 // Real-time studio channel (Phase 3 queue:update + Phase 4 studio:state). A
 // WebSocket server mounted at `/ws/studio` that the operator UI subscribes to.
 // Controllers call `broadcast(event, payload)` on any change (queue:update,
@@ -30,15 +36,22 @@ function init(server, { path = "/ws/studio" } = {}) {
     socket.on("error", () => clients.delete(socket));
   });
 
-  server.on("upgrade", (req, socket, head) => {
-    let pathname;
+  server.on("upgrade", async (req, socket, head) => {
+    let parsed;
     try {
-      pathname = new URL(req.url, "http://localhost").pathname;
+      parsed = new URL(req.url, "http://localhost");
     } catch (_) {
       return;
     }
     // Not our path — leave the socket for other upgrade listeners (e.g. ingest).
-    if (pathname !== path) return;
+    if (parsed.pathname !== path) return;
+    try {
+      await verify(parsed.searchParams.get("token"));
+    } catch (_) {
+      socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+      socket.destroy();
+      return;
+    }
     wss.handleUpgrade(req, socket, head, (ws) => {
       wss.emit("connection", ws, req);
     });

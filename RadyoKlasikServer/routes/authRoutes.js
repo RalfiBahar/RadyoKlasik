@@ -4,6 +4,7 @@ const {
   logout,
   generateAccessToken,
   verifyToken,
+  studioLogin,
 } = require("../controllers/authController");
 const router = express.Router();
 
@@ -14,6 +15,7 @@ router.get("/login", (req, res) => {
 router.post("/login", login);
 router.post("/logout", logout);
 router.post("/generate_token", generateAccessToken);
+router.post("/studio_login", studioLogin);
 router.post("/verify_token", verifyToken);
 
 module.exports = router;

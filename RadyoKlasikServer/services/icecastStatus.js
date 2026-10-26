@@ -1,5 +1,5 @@
 const axios = require("axios");
-const { Track } = require("../models");
+const { Track, PlayHistory } = require("../models");
 const nowPlaying = require("./nowPlaying");
 
 const ICECAST_TIMEOUT_MS = Number(process.env.ICECAST_STATUS_TIMEOUT_MS || 2000);
@@ -53,6 +53,17 @@ async function findMatchingTrack(parsed) {
   return Track.findOne({ where: { title: parsed.title } });
 }
 
+// When did this track start airing? The latest PlayHistory row for it (written
+// by the metadata hook) is authoritative; Icecast's stream_start is only when
+// the encoder connected, which made a recovered deck show e.g. 29:31 of 7:50.
+async function lastStartFor(trackId) {
+  const row = await PlayHistory.findOne({
+    where: { trackId },
+    order: [["startedAt", "DESC"]],
+  });
+  return row ? new Date(row.startedAt).toISOString() : null;
+}
+
 async function metadataFromIcecast() {
   const data = await getStatusJson();
   const source = sourcesFromStatus(data).find((s) => s && s.title);
@@ -68,7 +79,7 @@ async function metadataFromIcecast() {
       thumb: track.artworkPath ? `/media/${track.artworkPath}` : null,
       source: "autodj",
       trackId: track.id,
-      startedAt: source.stream_start_iso8601 || new Date().toISOString(),
+      startedAt: (await lastStartFor(track.id)) || new Date().toISOString(),
     };
   }
 
@@ -79,7 +90,7 @@ async function metadataFromIcecast() {
     thumb: null,
     source: "autodj",
     trackId: null,
-    startedAt: source.stream_start_iso8601 || new Date().toISOString(),
+    startedAt: new Date().toISOString(),
   };
 }
 

@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   clearAuth,
   decodeJwt,
-  getRole,
   getToken,
   isExpired,
-  setRole,
+  nameFromToken,
+  roleFromToken,
   setToken,
 } from "@/lib/token";
 
@@ -17,24 +17,23 @@ function fakeJwt(payload: Record<string, unknown>): string {
 }
 
 describe("token storage", () => {
-  it("persists and reads token + role", () => {
+  it("persists and clears the token", () => {
     setToken("abc.def.ghi");
-    setRole("dj");
     expect(getToken()).toBe("abc.def.ghi");
-    expect(getRole()).toBe("dj");
-  });
-
-  it("clears auth", () => {
-    setToken("abc.def.ghi");
-    setRole("admin");
     clearAuth();
     expect(getToken()).toBeNull();
-    expect(getRole()).toBeNull();
   });
 
-  it("rejects an unknown stored role", () => {
-    localStorage.setItem("rk_studio_role", "superuser");
-    expect(getRole()).toBeNull();
+  it("reads the role and name from the staff token", () => {
+    const t = fakeJwt({ sub: "u1", role: "dj", name: "DJ Nova" });
+    expect(roleFromToken(t)).toBe("dj");
+    expect(nameFromToken(t)).toBe("DJ Nova");
+  });
+
+  it("a legacy roleless token (public shared secret) has no studio role", () => {
+    expect(roleFromToken(fakeJwt({ iat: 1 }))).toBeNull();
+    expect(roleFromToken(fakeJwt({ role: "superuser" }))).toBeNull();
+    expect(roleFromToken(null)).toBeNull();
   });
 
   it("decodes a JWT payload", () => {

@@ -7,7 +7,7 @@ import {
   stopStudioSession,
 } from "@/lib/api";
 import { captureMic, connectIngest, type IngestControl } from "@/lib/mic";
-import type { StudioMode, StudioState } from "@/lib/types";
+import type { LiveAccess, StudioMode, StudioState } from "@/lib/types";
 import { Toggle } from "./TransportControls";
 
 // Mic on/off + mode (Autofeed) + gain/duck. Turning the mic ON reserves a live
@@ -17,18 +17,26 @@ import { Toggle } from "./TransportControls";
 export default function MicControl({
   studio,
   token,
+  access,
   onChanged,
 }: {
   studio: StudioState | null;
   token: string | null;
+  // Phase 7: whether this user may go live now (schedule / guest window).
+  access?: LiveAccess | null;
   onChanged?: () => void;
 }) {
   const active = !!studio && studio.state !== "idle";
+  // The schedule (or an expired guest window) doesn't allow going live now.
+  const blocked = !active && access ? !access.allowed : false;
   const [mode, setMode] = useState<StudioMode>(studio?.mode ?? "voiceover");
   const [micGain, setMicGain] = useState(1);
   const [duckLevel, setDuckLevel] = useState(0.25);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Local pre-air phase: asking the browser for the mic, then reserving the
+  // session. Shown in the status line so a pending permission prompt is obvious.
+  const [phase, setPhase] = useState<"idle" | "permission" | "connecting">("idle");
   const ingestRef = useRef<IngestControl | null>(null);
   const stoppingRef = useRef(false);
 
@@ -53,10 +61,28 @@ export default function MicControl({
     setBusy(true);
     setError(null);
     let sessionReserved = false;
+    let stream: MediaStream | null = null;
     try {
+      // Ask for the mic BEFORE reserving the live session, so a pending or
+      // denied permission prompt never leaves the station half-live.
+      setPhase("permission");
+      try {
+        stream = await captureMic();
+      } catch (err) {
+        const name = err instanceof DOMException ? err.name : "";
+        throw new Error(
+          name === "NotAllowedError"
+            ? "Microphone access was blocked. Allow it in the browser's site settings and try again."
+            : name === "NotFoundError"
+              ? "No microphone found."
+              : err instanceof Error
+                ? err.message
+                : "Could not open the microphone"
+        );
+      }
+      setPhase("connecting");
       const session = await startStudioSession({ mode });
       sessionReserved = true;
-      const stream = await captureMic();
       ingestRef.current = connectIngest({
         token,
         sessionId: session.sessionId,
@@ -81,7 +107,8 @@ export default function MicControl({
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to go live");
       stoppingRef.current = true;
-      ingestRef.current?.close();
+      if (ingestRef.current) ingestRef.current.close();
+      else stream?.getTracks().forEach((t) => t.stop());
       ingestRef.current = null;
       if (sessionReserved) {
         try {
@@ -93,6 +120,7 @@ export default function MicControl({
       }
       stoppingRef.current = false;
     } finally {
+      setPhase("idle");
       setBusy(false);
     }
   };
@@ -149,12 +177,21 @@ export default function MicControl({
         <div>
           <div className="text-sm font-semibold text-slate-100">Microphone</div>
           <div className="text-xs text-slate-500">
-            {active ? (studio?.onAir ? "On air" : "Connecting…") : "Off air"}
+            {phase === "permission"
+              ? "Waiting for microphone permission…"
+              : active
+                ? studio?.onAir
+                  ? "On air"
+                  : "Connecting…"
+                : phase === "connecting"
+                  ? "Connecting…"
+                  : "Off air"}
           </div>
         </div>
         <button
           onClick={toggleMic}
-          disabled={busy}
+          disabled={busy || blocked}
+          title={blocked ? access?.reason ?? undefined : undefined}
           aria-label={active ? "Turn microphone off" : "Turn microphone on"}
           aria-pressed={active}
           className={`flex h-14 w-14 items-center justify-center rounded-full text-2xl transition-colors ${
@@ -190,6 +227,9 @@ export default function MicControl({
       <Slider label="Mic gain" value={micGain} min={0} max={4} step={0.1} onChange={onMicGain} />
       <Slider label="Duck level" value={duckLevel} min={0} max={1} step={0.05} onChange={onDuck} />
 
+      {blocked && access?.reason && (
+        <p className="text-xs text-amber-400/90">{access.reason}</p>
+      )}
       {error && <p className="text-sm text-red-400">{error}</p>}
     </div>
   );

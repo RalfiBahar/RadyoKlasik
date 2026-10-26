@@ -117,7 +117,9 @@ export default function QueuePanel({
                     {item.track?.artist || "—"} · {formatDuration(item.track?.duration)}
                   </div>
                 </div>
-                <Badge tone={item.kind === "jingle" ? "amber" : "green"}>AUTO</Badge>
+                <Badge tone={item.kind === "jingle" ? "amber" : "green"}>
+                  {item.kind === "jingle" ? "JINGLE" : "AUTO"}
+                </Badge>
               </li>
             ))}
           </>

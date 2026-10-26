@@ -1,12 +1,10 @@
 import type { Role } from "./types";
 
-// Lightweight JWT/role storage. The control-plane (Phase 0–4) issues a JWT from
-// POST /auth/generate_token with an EMPTY payload (no role claim yet — real
-// role-based backend auth is Phase 7). So Phase 5 stores the operator's chosen
-// role alongside the token and enforces route guards client-side.
+// JWT storage for the studio. Since Phase 7 the server issues staff tokens that
+// carry { sub, role, name }, so the role shown/guarded client-side is read
+// from the token itself (the server enforces it on every request).
 
 const TOKEN_KEY = "rk_studio_token";
-const ROLE_KEY = "rk_studio_role";
 
 const isBrowser = typeof window !== "undefined";
 
@@ -20,21 +18,11 @@ export function setToken(token: string): void {
   window.localStorage.setItem(TOKEN_KEY, token);
 }
 
-export function getRole(): Role | null {
-  if (!isBrowser) return null;
-  const r = window.localStorage.getItem(ROLE_KEY);
-  return r === "admin" || r === "dj" || r === "guest" ? r : null;
-}
-
-export function setRole(role: Role): void {
-  if (!isBrowser) return;
-  window.localStorage.setItem(ROLE_KEY, role);
-}
-
 export function clearAuth(): void {
   if (!isBrowser) return;
   window.localStorage.removeItem(TOKEN_KEY);
-  window.localStorage.removeItem(ROLE_KEY);
+  // Pre-Phase-7 builds stored a client-picked role; drop it.
+  window.localStorage.removeItem("rk_studio_role");
 }
 
 // Decode a JWT payload without verifying (display/expiry hints only).
@@ -52,4 +40,17 @@ export function isExpired(token: string): boolean {
   const payload = decodeJwt(token);
   if (!payload || typeof payload.exp !== "number") return false;
   return payload.exp * 1000 < Date.now();
+}
+
+// Staff role carried by the token, or null (e.g. a legacy listener token).
+export function roleFromToken(token: string | null): Role | null {
+  if (!token) return null;
+  const r = decodeJwt(token)?.role;
+  return r === "admin" || r === "dj" || r === "guest" ? r : null;
+}
+
+export function nameFromToken(token: string | null): string | null {
+  if (!token) return null;
+  const n = decodeJwt(token)?.name;
+  return typeof n === "string" ? n : null;
 }

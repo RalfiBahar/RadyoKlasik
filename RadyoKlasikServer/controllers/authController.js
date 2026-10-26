@@ -56,3 +56,32 @@ exports.verifyToken = (req, res) => {
     res.status(401).json({ message: "Invalid token!" });
   }
 };
+
+// --- Phase 7: studio staff login --------------------------------------------
+const staffAuth = require("../services/staffAuth");
+
+// POST /auth/studio_login { username, password } -> { access_token, user }
+exports.studioLogin = async (req, res) => {
+  try {
+    const { username, password } = req.body || {};
+    const user = await staffAuth.authenticate(username, password);
+    if (!user) {
+      logger.warn("studio login failed", { username });
+      return res.status(401).json({ error: "Invalid username or password" });
+    }
+    const token = staffAuth.signStaffToken(user);
+    logger.info("studio login", { username, role: user.role });
+    return res.json({
+      access_token: token,
+      user: {
+        id: user.id,
+        username: user.username,
+        name: user.displayName || user.username,
+        role: user.role,
+      },
+    });
+  } catch (err) {
+    logger.error("studio login error", { error: String(err) });
+    return res.status(500).json({ error: "Login failed" });
+  }
+};

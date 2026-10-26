@@ -159,7 +159,8 @@ describe("POST /api/v1/playout/metadata (internal)", () => {
       });
     const res = await request(app).get("/playout/nowplaying");
     expect(res.status).toBe(200);
-    expect(res.body.thumb).toBe("/media/artwork/cover.jpg");
+    // Absolute, so listener apps on other origins can load it.
+    expect(res.body.thumb).toMatch(/^https?:\/\/[^/]+\/media\/artwork\/cover\.jpg$/);
   });
 
   test("tolerates an unknown track id (PlayHistory with null trackId)", async () => {
@@ -228,6 +229,28 @@ describe("GET /playout/nowplaying (public)", () => {
       title: "Song B",
     });
     expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  test("recovered start time comes from play history, not the encoder start", async () => {
+    // Newer than any play earlier tests logged for this track.
+    const startedAt = new Date(Date.now() + 1000);
+    await PlayHistory.create({ trackId: songB.id, source: "autodj", startedAt });
+    nowPlaying.clear();
+    const spy = jest.spyOn(axios, "get").mockResolvedValueOnce({
+      data: {
+        icestats: {
+          source: {
+            title: "Tester - Song B",
+            stream_start_iso8601: "2026-06-08T02:09:46+0000",
+          },
+        },
+      },
+    });
+    const status = await request(app)
+      .get("/api/v1/playout/status")
+      .set("Authorization", AUTH);
+    expect(status.body.currentTrack.startedAt).toBe(startedAt.toISOString());
     spy.mockRestore();
   });
 });

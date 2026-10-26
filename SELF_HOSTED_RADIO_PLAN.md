@@ -789,6 +789,40 @@ build` to typecheck/produce the production build.
 
 ---
 
+### Status / decisions / gotchas (Phase 6)
+
+**Status: DONE.** Collector, storage, endpoints, Analytics page and live
+Dashboard cards. Backend tests 147/147 (incl. `__tests__/analytics.test.js`).
+
+- **Icecast 2.4.4 has no X-Forwarded-For support** (verified: no such config
+  key in the binary), so behind Caddy every listener's IP is Caddy's. Sessions
+  therefore come from **Caddy's JSON access log** for the stream site
+  (`/var/log/caddy/stream-access.log`, shared `caddylogs` volume, read by the
+  API) — real client IP, UA, bytes — written when the listener disconnects.
+  Direct (non-proxied) listeners are tracked live from Icecast
+  `admin/listclients`; clients whose IP is Caddy's (`STREAM_PROXY_IP`, fixed at
+  `172.28.0.10` on a fixed `172.28.0.0/24` radyonet subnet) are skipped there
+  so nothing is double counted.
+- **Caddy logs `duration: 0` for proxied streams**, so session length is
+  derived from bytes: `(size − 64 KiB Icecast burst) / (kbps·1000/8)`
+  (`STREAM_BITRATE_KBPS`, default 128). Sub-5 s requests are ignored (probes).
+- A **per-minute `ListenerSnapshots`** row (Icecast listener count) drives
+  listeners-over-time, peak/avg and listening hours — so long sessions count
+  before they end.
+- IPs are stored only as a **salted SHA-256** (`ANALYTICS_IP_SALT`, falls back
+  to `SECRET_KEY`) for unique counts. Country via **geoip-lite 2.0.3** (bundled
+  GeoLite2, no licence key; lazy-loaded; `GEOIP_ENABLED=false` disables; adds
+  ~115 MB to the image and some RAM). Retention: `ANALYTICS_RETENTION_DAYS`
+  (400). Behind Cloudflare/CDN add Caddy `trusted_proxies` so `client_ip` is
+  the listener.
+- Endpoints `/api/v1/analytics/{live,listeners,regional,hourly,devices,tracks,
+  tracks/monthly,export}`; periods today/yesterday/7d/30d/YYYY-MM in the
+  station timezone. `live` is admin+DJ (dashboard); the rest admin-only.
+- Local test of the proxied path without TLS: `curl -H "Host: stream.localhost"
+  http://localhost/stream`.
+
+---
+
 ## Phase 7 — Scheduling, autopilot & DJ management
 
 **Objective**: Reproduce RadioJar's autopilots/schedules/breaks + **DJ & shows management** (drag-and-drop scheduling, access control, per-DJ preferences, collaborative shows, show/episode profiles).
@@ -818,6 +852,40 @@ build` to typecheck/produce the production build.
 
 ---
 
+### Status / decisions / gotchas (Phase 7)
+
+**Status: DONE.** Migration `20261026000001-scheduling-users`, backend tests
+(`scheduler.test.js`, `phase7.integration.test.js`), studio pages Scheduling /
+DJ Management / Playlists, verified in the browser as admin and as a DJ.
+
+- **Real staff auth (security fix).** The listener web app ships
+  `NEXT_PUBLIC_SHARED_SECRET` in its public bundle, and the shared-secret JWT
+  used to pass `tokenRequired` on every `/api/v1` operator route — anyone could
+  skip tracks, delete the library or go live. Now: `POST /auth/studio_login`
+  (per-user bcrypt password, or the env `ADMIN_USERNAME`/`ADMIN_PASSWORD`
+  bootstrap admin) issues `{sub, role, name}` JWTs, and **all `/api/v1`
+  operator routes and both WebSockets (`/ws/studio`, `/ws/ingest`) require a
+  staff role** (`services/staffAuth.js`). Roleless shared-secret tokens get 403
+  there but still work on the legacy listener routes (`/chat`, `/recording`,
+  ...). Disabled users / expired guests are rejected on the next request.
+- **Guests:** `POST /api/v1/users/guest` creates a time-boxed guest user and
+  returns a token; the studio link is `/guest#<token>` (fragment, so it never
+  hits logs). Guests are studio-only.
+- **Schedule:** weekly (`dayOfWeek`) or one-off (`date`) slots in the station
+  timezone (`settings.timezone`, default Europe/Istanbul), may cross midnight;
+  one-offs override weekly; the most recently started overlapping slot wins.
+  A slot's playlist (or its show's playlist) narrows AutoDJ to that playlist's
+  songs (shuffled or in order); jingles/commercials still come from the whole
+  library. Switching is **soft** (the current track finishes). With
+  `enforceSchedule` on, DJs may only go live during a slot of a show they host
+  (from 10 min before); admins always can.
+- **Settings persisted** (`StationSettings`): autopilot (no longer resets to ON
+  on API restart), jingle/commercial cadence, timezone, enforceSchedule.
+- **Episodes** are logged the first time a show's session reaches air.
+- Boot order: `app.ready` (migrations) → settings → scheduler/collector.
+
+---
+
 ## Phase 8 — Listener frontend & mobile integration
 
 **Objective**: Point the existing public listener apps fully at the self-hosted stack and remove RadioJar fallbacks.
@@ -837,6 +905,38 @@ build` to typecheck/produce the production build.
 **Testing**
 - Integration: web + mobile play self-hosted stream; nowplaying matches air; recording captures the self-hosted stream and saves correctly.
 - Manual: full listen-through on web + mobile with no RadioJar references in network calls.
+
+---
+
+### Status (Phase 8, partial)
+
+- `radyo-klasik-web`: RadioJar fallbacks removed (Player defaults to the
+  self-hosted stream, now-playing from `/playout/nowplaying`; all-null =
+  off-air → station tagline). Dead `useNowPlayingfggg.ts` deleted. Verified
+  playing from the local Icecast with no RadioJar requests.
+- `/playout/nowplaying` returns an **absolute** artwork URL (`PUBLIC_API_URL`,
+  else the request host) so other origins can load it.
+- Recorder records from `RECORD_STREAM_URL` (default
+  `http://icecast:8000/stream`); `/recording/get_redirect` returns
+  `PUBLIC_STREAM_URL` and no longer leaves a live stream socket open.
+- **Not done:** mobile app (RadyoKlasikMobile) still points at RadioJar.
+
+### Panel stabilization (Oct 2026)
+
+Bugs found by driving the studio in a browser, all fixed with tests:
+queue adds cut the current song (`fallback(track_sensitive=false)` → `true`);
+AutoDJ "next" list was a random re-roll that never matched what aired (now a
+committed plan: `rotation.takeNext/upcoming/markAired`); Liquidsoap's
+`smooth_add` also attenuated the **mic** to `1−p` and ignored duck-level
+changes mid-show (replaced by a per-frame duck ramp + unity mic, verified with
+`astats`); a full-takeover session cut the music before the mic connected
+(dead air during the permission prompt) and a never-connected session stayed
+reserved forever (now applied on harbor connect + 30 s connect timeout); the
+panel reserved the session before asking for mic permission; going off air
+without a track change left "Live" as now-playing; a recovered deck after an
+API restart used Icecast's stream start (now PlayHistory); top bar showed OFF
+AIR while AutoDJ was broadcasting; fake Lobby/Facebook toggles removed; studio
+clock and schedule labels use station time; browser AGC disabled on the mic.
 
 ---
 
@@ -887,13 +987,13 @@ build` to typecheck/produce the production build.
 - [x] Queue / request management: add, reorder, remove, skip, play-next (Phase 3 ✅ backend/API: request queue spliced ahead of AutoDJ, QueueItem mirror, /api/v1/queue + skip + autopilot, /ws/studio queue:update; Phase 5 ✅ UI: drag-reorder QueuePanel + LibraryBrowser add/play-next + live WS)
 - [x] Virtual Studio: browser mic broadcasting, **voice-over ducking**, live takeover, monitoring, transport, autoplay/autofeed toggles (Phase 4 ✅ engine/ingest/control: input.harbor "/live", smooth_add voice-over ducking + full-takeover master-gain cut, ws/ingest browser→ffmpeg→harbor, liveSession state machine + /api/v1/studio/*, per-DJ mic prefs, live now-playing, studio:state over /ws/studio, auto-failback to AutoDJ on drop; Phase 5 ✅ studio UI: ON AIR + clock, Autofeed voiceover/live, LISTEN monitor, now-playing card + waveform, transport, library browser + queue, mic on/off → session/start + /ws/ingest capture, level meter)
 - [x] Dead-air failover / cloud automation (Phase 2 ✅ rotation-source failover → emergency playlist + mksafe, no dead air; live-DJ disconnect handoff in Phase 4)
-- [ ] DJ & shows management: roles, access control, guest DJs, per-DJ mic prefs, show/episode profiles, collaborative shows (Phase 7)
-- [ ] Scheduling / autopilots / breaks (Phase 7)
-- [ ] Analytics: listeners, sessions, listening time, GB, regional map, hourly, device, track reports, monthly, export (Phase 6)
+- [x] DJ & shows management: roles, access control, guest DJs, per-DJ mic prefs, show/episode profiles, collaborative shows (Phase 7 ✅ — multiple hosts per show)
+- [x] Scheduling / autopilots / breaks (Phase 7 ✅)
+- [x] Analytics: listeners, sessions, listening time, GB, regional, hourly, device, track reports, monthly, export (Phase 6 ✅ — country list rather than a world map)
 - [ ] Multiple stream outputs / encodings + scaling + stream protection (Phase 9)
 - [x] Broadcast link settings surfaced (host/port/mount/credentials) (Phase 5 ✅ read-only Dashboard card; source password masked)
-- [ ] Public listener web + mobile fully on self-hosted stream + nowplaying (Phase 8)
-- [ ] Recording of the live stream preserved (Phase 8)
+- [ ] Public listener web + mobile fully on self-hosted stream + nowplaying (Phase 8 — web ✅, mobile pending)
+- [x] Recording of the live stream preserved (Phase 8 ✅ — records from Icecast)
 
 ## Dependency order (run phases sequentially)
 0 → 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10. Phases 5 and 6 can overlap once their backing APIs (1–4 / 6 collector) exist; everything else is strictly sequential.

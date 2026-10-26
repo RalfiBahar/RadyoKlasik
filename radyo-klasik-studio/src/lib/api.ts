@@ -1,5 +1,22 @@
 import { getToken, clearAuth } from "./token";
 import type {
+  AnalyticsPeriod,
+  DeviceRow,
+  HourlyRow,
+  ListenersReport,
+  LiveAnalytics,
+  MonthlyRow,
+  RegionalRow,
+  TrackReportRow,
+  Episode,
+  LiveAccess,
+  Playlist,
+  PlaylistDetail,
+  ScheduleNow,
+  ScheduleSlot,
+  Show,
+  StaffUser,
+  StationSettings,
   PlayoutStatus,
   QueueItem,
   QueueState,
@@ -110,11 +127,15 @@ async function safeBody(res: Response): Promise<unknown> {
 
 // --- Auth ------------------------------------------------------------------
 
-export async function generateToken(sharedSecret: string): Promise<string> {
-  const data = await apiFetch<{ access_token: string }>("/auth/generate_token", {
+// Phase 7: staff login (per-DJ username/password). The token carries the role.
+export async function studioLogin(
+  username: string,
+  password: string
+): Promise<string> {
+  const data = await apiFetch<{ access_token: string }>("/auth/studio_login", {
     method: "POST",
     auth: false,
-    body: { shared_secret: sharedSecret },
+    body: { username, password },
   });
   return data.access_token;
 }
@@ -302,4 +323,220 @@ export function setStudioMode(mode: StudioMode): Promise<StudioState> {
     method: "POST",
     body: { mode },
   });
+}
+
+export function getLiveAccess(): Promise<LiveAccess> {
+  return apiFetch<LiveAccess>("/api/v1/studio/access");
+}
+
+// --- Users / guests (Phase 7, admin) ----------------------------------------
+
+export function listUsers(): Promise<{ items: StaffUser[] }> {
+  return apiFetch("/api/v1/users");
+}
+
+export function createUser(payload: {
+  username: string;
+  password: string;
+  displayName?: string;
+  email?: string;
+  role: "admin" | "dj";
+}): Promise<StaffUser> {
+  return apiFetch("/api/v1/users", { method: "POST", body: payload });
+}
+
+export function updateUser(
+  id: string,
+  patch: Partial<{
+    displayName: string | null;
+    email: string | null;
+    role: "admin" | "dj";
+    active: boolean;
+    password: string;
+    accessUntil: string | null;
+  }>
+): Promise<StaffUser> {
+  return apiFetch(`/api/v1/users/${id}`, { method: "PATCH", body: patch });
+}
+
+export function deleteUser(id: string): Promise<{ deleted: boolean }> {
+  return apiFetch(`/api/v1/users/${id}`, { method: "DELETE" });
+}
+
+export function createGuest(payload: {
+  name: string;
+  accessFrom: string;
+  accessUntil: string;
+}): Promise<{ user: StaffUser; token: string }> {
+  return apiFetch("/api/v1/users/guest", { method: "POST", body: payload });
+}
+
+// --- Shows (Phase 7) --------------------------------------------------------
+
+export interface ShowInput {
+  title: string;
+  tagline?: string | null;
+  color?: string | null;
+  playlistId?: string | null;
+  hostIds?: string[];
+}
+
+export function listShows(): Promise<{ items: Show[] }> {
+  return apiFetch("/api/v1/shows");
+}
+
+export function createShow(payload: ShowInput): Promise<Show> {
+  return apiFetch("/api/v1/shows", { method: "POST", body: payload });
+}
+
+export function updateShow(id: string, patch: Partial<ShowInput>): Promise<Show> {
+  return apiFetch(`/api/v1/shows/${id}`, { method: "PATCH", body: patch });
+}
+
+export function deleteShow(id: string): Promise<{ deleted: boolean }> {
+  return apiFetch(`/api/v1/shows/${id}`, { method: "DELETE" });
+}
+
+export function listEpisodes(showId: string): Promise<{ items: Episode[] }> {
+  return apiFetch(`/api/v1/shows/${showId}/episodes`);
+}
+
+// --- Schedule + settings (Phase 7) ------------------------------------------
+
+export type SlotInput = Partial<
+  Pick<
+    ScheduleSlot,
+    | "title"
+    | "showId"
+    | "playlistId"
+    | "dayOfWeek"
+    | "date"
+    | "startMinute"
+    | "durationMinutes"
+    | "shuffle"
+    | "color"
+  >
+>;
+
+export function listSchedule(): Promise<{ items: ScheduleSlot[]; now: ScheduleNow }> {
+  return apiFetch("/api/v1/schedule");
+}
+
+export function getScheduleNow(): Promise<ScheduleNow> {
+  return apiFetch("/api/v1/schedule/now");
+}
+
+export function createSlot(payload: SlotInput): Promise<ScheduleSlot> {
+  return apiFetch("/api/v1/schedule", { method: "POST", body: payload });
+}
+
+export function updateSlot(id: string, patch: SlotInput): Promise<ScheduleSlot> {
+  return apiFetch(`/api/v1/schedule/${id}`, { method: "PATCH", body: patch });
+}
+
+export function deleteSlot(id: string): Promise<{ deleted: boolean }> {
+  return apiFetch(`/api/v1/schedule/${id}`, { method: "DELETE" });
+}
+
+export function getSettings(): Promise<StationSettings> {
+  return apiFetch("/api/v1/settings");
+}
+
+export function updateSettings(
+  patch: Partial<Omit<StationSettings, "autopilot">>
+): Promise<StationSettings> {
+  return apiFetch("/api/v1/settings", { method: "PATCH", body: patch });
+}
+
+// --- Playlists (Phase 1 API, Phase 7 UI) ------------------------------------
+
+export function listPlaylists(): Promise<{ items: (Playlist & { itemCount?: number })[] }> {
+  return apiFetch("/api/v1/playlists");
+}
+
+export function getPlaylist(id: string): Promise<PlaylistDetail> {
+  return apiFetch(`/api/v1/playlists/${id}`);
+}
+
+export function createPlaylist(payload: {
+  name: string;
+  description?: string;
+}): Promise<Playlist> {
+  return apiFetch("/api/v1/playlists", { method: "POST", body: payload });
+}
+
+export function updatePlaylist(
+  id: string,
+  patch: { name?: string; description?: string | null }
+): Promise<Playlist> {
+  return apiFetch(`/api/v1/playlists/${id}`, { method: "PATCH", body: patch });
+}
+
+export function deletePlaylist(id: string): Promise<{ deleted: boolean }> {
+  return apiFetch(`/api/v1/playlists/${id}`, { method: "DELETE" });
+}
+
+export function addPlaylistItem(id: string, trackId: string): Promise<unknown> {
+  return apiFetch(`/api/v1/playlists/${id}/items`, {
+    method: "POST",
+    body: { trackId },
+  });
+}
+
+export function removePlaylistItem(id: string, itemId: string): Promise<unknown> {
+  return apiFetch(`/api/v1/playlists/${id}/items/${itemId}`, { method: "DELETE" });
+}
+
+export function reorderPlaylist(id: string, orderedIds: string[]): Promise<unknown> {
+  return apiFetch(`/api/v1/playlists/${id}/reorder`, {
+    method: "PATCH",
+    body: { orderedIds },
+  });
+}
+
+// --- Analytics (Phase 6) ------------------------------------------------------
+
+export function getLiveAnalytics(): Promise<LiveAnalytics> {
+  return apiFetch("/api/v1/analytics/live");
+}
+
+export function getListenersReport(period: AnalyticsPeriod): Promise<ListenersReport> {
+  return apiFetch("/api/v1/analytics/listeners", { query: { period } });
+}
+
+export function getRegional(period: AnalyticsPeriod): Promise<{ items: RegionalRow[] }> {
+  return apiFetch("/api/v1/analytics/regional", { query: { period } });
+}
+
+export function getHourly(period: AnalyticsPeriod): Promise<{ items: HourlyRow[] }> {
+  return apiFetch("/api/v1/analytics/hourly", { query: { period } });
+}
+
+export function getDevices(period: AnalyticsPeriod): Promise<{ items: DeviceRow[] }> {
+  return apiFetch("/api/v1/analytics/devices", { query: { period } });
+}
+
+export function getTrackReport(
+  period: AnalyticsPeriod,
+  type?: TrackType
+): Promise<{ items: TrackReportRow[] }> {
+  return apiFetch("/api/v1/analytics/tracks", { query: { period, type } });
+}
+
+export function getMonthlyTracks(months = 12): Promise<{ items: MonthlyRow[] }> {
+  return apiFetch("/api/v1/analytics/tracks/monthly", { query: { months } });
+}
+
+// Download a CSV export (needs the auth header, so fetch + blob, not a link).
+export async function downloadAnalyticsCsv(
+  type: "listeners" | "regional" | "hourly" | "devices" | "tracks",
+  period: AnalyticsPeriod
+): Promise<void> {
+  const csv = await apiFetch<string>("/api/v1/analytics/export", { query: { type, period } });
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `radyoklasik-${type}-${period}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }

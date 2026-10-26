@@ -130,3 +130,161 @@ export interface Playlist {
   name: string;
   description?: string | null;
 }
+
+// --- Phase 7: accounts, shows, schedule, settings --------------------------
+
+export interface StaffUser {
+  id: string;
+  username: string;
+  displayName: string | null;
+  email: string | null;
+  role: Role;
+  active: boolean;
+  accessFrom: string | null;
+  accessUntil: string | null;
+  micPreferences: Record<string, unknown> | null;
+  shows: { id: string; title: string }[];
+  createdAt: string;
+}
+
+export interface Show {
+  id: string;
+  title: string;
+  tagline: string | null;
+  color: string | null;
+  playlistId: string | null;
+  playlistName: string | null;
+  hosts: { id: string; username: string; name: string }[];
+}
+
+export interface Episode {
+  id: string;
+  title: string;
+  description: string | null;
+  airedAt: string | null;
+}
+
+export interface ScheduleSlot {
+  id: string;
+  title: string | null;
+  showId: string | null;
+  showTitle: string | null;
+  playlistId: string | null;
+  playlistName: string | null;
+  dayOfWeek: number | null;
+  date: string | null;
+  startMinute: number;
+  durationMinutes: number;
+  shuffle: boolean;
+  color: string | null;
+}
+
+export interface ScheduleNow {
+  active: {
+    slotId: string;
+    title: string;
+    showId: string | null;
+    showTitle: string | null;
+    playlistId: string | null;
+    endsAt: string | null;
+    color: string | null;
+  } | null;
+  timezone: string;
+}
+
+export interface StationSettings {
+  autopilot: boolean;
+  jingleEvery: number;
+  commercialEvery: number;
+  timezone: string;
+  enforceSchedule: boolean;
+}
+
+export interface LiveAccess {
+  allowed: boolean;
+  reason: string | null;
+  show: { id: string; title: string } | null;
+}
+
+export interface PlaylistDetail extends Playlist {
+  items: { id: string; position: number; track: Track | null }[];
+}
+
+// --- Phase 6: analytics -------------------------------------------------------
+
+export type AnalyticsPeriod = "today" | "yesterday" | "7d" | "30d" | string;
+
+export interface ListenersReport {
+  period: string;
+  from: string;
+  to: string;
+  bucket: "hour" | "day";
+  timezone: string;
+  series: { t: string; avg: number; peak: number }[];
+  kpis: {
+    peakListeners: number;
+    avgListeners: number;
+    listeningHours: number;
+    totalSessions: number;
+    uniqueListeners: number;
+    avgSessionsPerHour: number;
+    avgListeningMinutes: number;
+    sessionHours: number;
+    totalGb: number;
+  };
+}
+
+export interface RegionalRow {
+  country: string | null;
+  sessions: number;
+  uniqueListeners: number;
+  listeningHours: number;
+  pct: number;
+}
+
+export interface HourlyRow {
+  hour: number;
+  sessions: number;
+  avgListeningMinutes: number;
+  listeningHours: number;
+  avgListeners: number;
+  peakListeners: number;
+}
+
+export interface DeviceRow {
+  device: string;
+  sessions: number;
+  avgListeningMinutes: number;
+  pct: number;
+}
+
+export interface TrackReportRow {
+  trackId: string;
+  title: string;
+  artist: string | null;
+  album: string | null;
+  type: TrackType;
+  plays: number;
+  requested: number;
+  lastPlayed: string;
+}
+
+export interface MonthlyRow {
+  month: string;
+  plays: number;
+  distinctTracks: number;
+  topTrack: { title: string; artist: string | null; plays: number } | null;
+}
+
+export interface LiveAnalytics {
+  listeners: number | null;
+  timezone: string;
+  countries24h: { country: string; sessions: number }[];
+  lastPlayed: {
+    startedAt: string;
+    source: string;
+    title: string | null;
+    artist: string | null;
+    type: TrackType | null;
+  }[];
+}
