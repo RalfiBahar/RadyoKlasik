@@ -48,11 +48,23 @@ services:
       - "8000:8000"
     networks: [radyonet]
 
+  # One-shot: named volumes start root-owned, but Liquidsoap runs as uid 10000
+  # and must write HLS segments.
+  volume-init:
+    image: busybox:1.36
+    command: ["sh", "-c", "mkdir -p /var/hls/.tmp && chown -R 10000:10001 /var/hls"]
+    volumes:
+      - hls:/var/hls
+    restart: "no"
+
   liquidsoap:
     image: savonet/liquidsoap:v2.2.5
     restart: unless-stopped
     depends_on:
-      - icecast
+      icecast:
+        condition: service_started
+      volume-init:
+        condition: service_completed_successfully
     environment:
       ICECAST_HOST: ${ICECAST_HOST:-icecast}
       ICECAST_PORT: ${ICECAST_PORT:-8000}
@@ -84,6 +96,8 @@ services:
       - ./liquidsoap/test-media:/srv/test-media:ro
       # Phase 2: read access to uploaded tracks selected by /api/v1/playout/next.
       - media:/var/media:ro
+      # Phase 9: HLS segments + playlists, served by Caddy at /hls/.
+      - hls:/var/hls
     networks: [radyonet]
 
   api:
@@ -109,6 +123,7 @@ services:
       LIQUIDSOAP_HOST: ${LIQUIDSOAP_HOST:-liquidsoap}
       LIQUIDSOAP_TELNET_PORT: ${LIQUIDSOAP_TELNET_PORT:-1234}
       MEDIA_DIR: ${MEDIA_DIR:-/var/media}
+      APP_DATA_DIR: /var/radyo-data
       # Phase 2: internal secret for the Liquidsoap <-> API playout endpoints,
       # and seeding a starter rotation from the bundled clips on first boot.
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:?set INTERNAL_API_SECRET in infra/.env}
@@ -130,6 +145,11 @@ services:
       - media:/var/media
       # Phase 6: Caddy's stream access log (proxied listener sessions).
       - caddylogs:/var/log/caddy:ro
+      # Phase 9: HLS output, read-only, for the freshness alert.
+      - hls:/var/hls:ro
+      # Recordings, recording thumbnails, chat history, announcement — must
+      # survive image rebuilds (they used to live inside the container).
+      - appdata:/var/radyo-data
       # Bundled clips used to seed a starter rotation into the library.
       - ./liquidsoap/test-media:/srv/test-media:ro
     ports:
@@ -158,6 +178,8 @@ services:
       - caddy_config:/config
       # Phase 6: stream access log (real listener IPs) read by the API.
       - caddylogs:/var/log/caddy
+      # Phase 9: HLS output written by Liquidsoap.
+      - hls:/srv/hls:ro
     ports:
       - "80:80"
       - "443:443"
@@ -165,6 +187,35 @@ services:
       radyonet:
         # Must match STREAM_PROXY_IP for the API (listener analytics).
         ipv4_address: 172.28.0.10
+
+  # Phase 9: scheduled backups (daily DB dump, weekly media archive, optional
+  # offsite copy via rclone). Files land in infra/backups/ on the host.
+  # Run one now:  docker compose run --rm backup /backup/backup.sh once
+  # Restore:      ./backup/restore.sh db|media <file>   (see OPERATIONS.md)
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-radyo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in infra/.env}
+      POSTGRES_DB: ${POSTGRES_DB:-radyoklasik}
+      BACKUP_HOUR: ${BACKUP_HOUR:-3}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+      BACKUP_KEEP_MEDIA: ${BACKUP_KEEP_MEDIA:-4}
+      BACKUP_MEDIA_WEEKDAY: ${BACKUP_MEDIA_WEEKDAY:-1}
+      BACKUP_RCLONE_REMOTE: ${BACKUP_RCLONE_REMOTE:-}
+    entrypoint: ["/bin/sh"]
+    command: ["/backup/backup.sh"]
+    volumes:
+      - ./backup:/backup:ro
+      - ./backups:/backups
+      - ./backup/rclone:/config/rclone:ro
+      - media:/var/media:ro
+      - appdata:/var/radyo-data:ro
+    networks: [radyonet]
 
   # Optional S3-compatible object storage for media (Phase 1+).
   # Enable with:  docker compose --profile minio up
@@ -195,6 +246,8 @@ networks:
         - subnet: 172.28.0.0/24
 
 volumes:
+  appdata:
+  hls:
   caddylogs:
   pgdata:
   media:

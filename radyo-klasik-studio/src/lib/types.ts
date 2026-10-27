@@ -10,6 +10,12 @@ export interface Track {
   title: string;
   artist: string | null;
   album: string | null;
+  composer?: string | null;
+  year?: number | null;
+  genre?: string | null;
+  comment?: string | null;
+  format?: string | null;
+  audioUrl?: string;
   type: TrackType;
   duration: number | null;
   bitrate?: number | null;
@@ -287,4 +293,83 @@ export interface LiveAnalytics {
     artist: string | null;
     type: TrackType | null;
   }[];
+}
+
+// --- Listener features (recordings, chat, announcement, push) ----------------
+
+export interface RecordingItem {
+  id: string;
+  filename: string;
+  title: string;
+  artist: string;
+  album: string | null;
+  artwork: string | null;
+  artworkUrl: string | null;
+  duration: number;
+  sizeMb: number;
+  date: string;
+  plays: number;
+  special: string | null;
+  /** local = server disk only, pending = waiting to upload, r2 = in Cloudflare R2 */
+  storage: "local" | "pending" | "r2";
+  storageError: string | null;
+  storedAt: string | null;
+  onDisk: boolean;
+  fileMissing: boolean;
+}
+
+export interface RecordingStorageStats {
+  mode: "local" | "r2";
+  configured: boolean;
+  counts: { local: number; pending: number; r2: number };
+  failed: number;
+}
+
+export interface RecorderStatus {
+  recording: boolean;
+  startedAt: string | null;
+  elapsedSec: number;
+  title: string | null;
+  artist: string | null;
+  artwork: string | null;
+  startedBy: string | null;
+  maxHours: number;
+  last: { ok: boolean; title?: string; error?: string; at: string } | null;
+}
+
+export interface ArtworkItem {
+  file: string;
+  url: string;
+  usedBy: number;
+}
+
+export interface ChatMessage {
+  id: string;
+  message: string;
+  sender: string;
+  timestamp: string;
+  admin?: boolean;
+  logo?: string | null;
+}
+
+export interface Announcement {
+  text: string | null;
+  updatedAt: string | null;
+}
+
+export interface PushSend {
+  title: string;
+  subtitle: string | null;
+  body: string;
+  sentAt: string;
+  sentBy: string | null;
+  attempted: number;
+  delivered: number;
+  removedDevices: number;
+}
+
+export interface PushOverview {
+  devices: number;
+  invalidTokens: number;
+  history: PushSend[];
 }

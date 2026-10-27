@@ -53,6 +53,20 @@ const Recording = sequelize.define(
       type: DataTypes.DATE,
       allowNull: false,
     },
+    // "local" | "pending" | "r2" — see services/recordingStorage.js
+    storage: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: "local",
+    },
+    storedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    storageError: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
   },
   {
     timestamps: true,

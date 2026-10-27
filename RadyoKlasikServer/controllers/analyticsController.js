@@ -1,7 +1,6 @@
 const { QueryTypes } = require("sequelize");
 const { sequelize } = require("../models");
 const settings = require("../services/settings");
-const icecastStatus = require("../services/icecastStatus");
 const logger = require("../logger");
 
 // Phase 6 — analytics & reporting (RadioJar parity): listeners over time,
@@ -266,7 +265,7 @@ exports.live = async (req, res) => {
   try {
     let listeners = null;
     try {
-      listeners = await icecastStatus.getListenerCount();
+      listeners = await require("../services/analytics/collector").liveListeners();
     } catch (_) {
       listeners = null;
     }

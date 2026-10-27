@@ -13,6 +13,7 @@ import { formatDuration, formatSizeMb } from "@/lib/format";
 import { Badge, Spinner } from "@/components/ui";
 import UploadModal from "./UploadModal";
 import EditTrackModal from "./EditTrackModal";
+import BulkEditModal from "./BulkEditModal";
 
 type TypeFilter = "all" | TrackType;
 
@@ -39,6 +40,7 @@ export default function LibraryView() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [showUpload, setShowUpload] = useState(false);
   const [editing, setEditing] = useState<Track | null>(null);
+  const [bulkEditing, setBulkEditing] = useState(false);
 
   const debouncedSearch = useDebouncedValue(search, 350);
   const debouncedTag = useDebouncedValue(tag, 350);
@@ -231,8 +233,12 @@ export default function LibraryView() {
           </span>
           <button
             className="btn-ghost px-2 py-1"
-            disabled={selected.size !== 1}
+            disabled={selected.size === 0}
             onClick={() => {
+              if (selected.size > 1) {
+                setBulkEditing(true);
+                return;
+              }
               const id = [...selected][0];
               const t = items.find((x) => x.id === id);
               if (t) setEditing(t);
@@ -267,7 +273,7 @@ export default function LibraryView() {
         )}
 
         {/* Table */}
-        <div className="overflow-x-auto rounded-xl border border-ink-700">
+        <div className="overflow-x-auto rounded-xl border border-ink-700 bg-white shadow-sm">
           <table className="w-full text-left text-sm">
             <thead className="bg-ink-800 text-xs uppercase text-slate-400">
               <tr>
@@ -313,7 +319,10 @@ export default function LibraryView() {
                       )}
                     </div>
                   </td>
-                  <td className="px-3 py-2 font-medium text-slate-100">{t.title}</td>
+                  <td className="px-3 py-2">
+                    <div className="font-medium text-slate-100">{t.title}</div>
+                    {t.composer && <div className="text-xs text-slate-500">{t.composer}</div>}
+                  </td>
                   <td className="px-3 py-2 text-slate-300">{t.artist || "—"}</td>
                   <td className="px-3 py-2 text-slate-400">{t.album || "Unknown"}</td>
                   <td className="px-3 py-2 text-slate-400">{formatDuration(t.duration)}</td>
@@ -395,6 +404,16 @@ export default function LibraryView() {
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);
+            load();
+          }}
+        />
+      )}
+      {bulkEditing && (
+        <BulkEditModal
+          trackIds={[...selected]}
+          onClose={() => setBulkEditing(false)}
+          onSaved={() => {
+            setBulkEditing(false);
             load();
           }}
         />

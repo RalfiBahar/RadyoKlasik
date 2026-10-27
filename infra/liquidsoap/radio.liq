@@ -397,18 +397,63 @@ music = amplify(id="duck", override=null(), duck_gain, music)
 radio = add(id="live_mix", normalize=false, [music, live])
 radio = mksafe(radio)
 
-# --- Output ---------------------------------------------------------------
-# Explicit id so the API can `radio_out.skip` the current track regardless of
-# which underlying source (live / requests / autodj / emergency) is on air.
-output.icecast(
-  id="radio_out",
-  %mp3(bitrate=128),
-  host=icecast_host,
-  port=icecast_port,
-  password=source_password,
-  mount="/stream",
-  name="Radyo Klasik",
-  description="Radyo Klasik — self-hosted AutoDJ + Live",
-  genre="Classical",
-  radio
+# --- Outputs (Phase 9: multi-bitrate + HLS) -------------------------------
+# Every output encodes the same `radio` mix:
+#   /stream      MP3 128k        primary, maximum compatibility (web, mobile)
+#   /stream-hd   AAC-LC 192k     high quality for classical (fdk-aac)
+#   /stream-low  HE-AAC v1 64k   low bandwidth / mobile data
+#   HLS          AAC 128k + 64k  adaptive playlist written to HLS_DIR and served
+#                                as static files by Caddy (/hls/live.m3u8), so
+#                                it can sit behind any CDN.
+# The MP3 output keeps the explicit id "radio_out": the API skips the current
+# track through it (skipping the shared source affects every output).
+def icecast_out(~id, ~mount, ~name, enc) =
+  output.icecast(
+    id=id,
+    enc,
+    host=icecast_host,
+    port=icecast_port,
+    password=source_password,
+    mount=mount,
+    name=name,
+    description="Radyo Klasik — self-hosted AutoDJ + Live",
+    genre="Classical",
+    radio
+  )
+end
+
+icecast_out(id="radio_out", mount="/stream", name="Radyo Klasik", %mp3(bitrate=128))
+
+icecast_out(
+  id="radio_hd",
+  mount="/stream-hd",
+  name="Radyo Klasik HD",
+  %fdkaac(channels=2, samplerate=44100, bitrate=192, aot="mpeg4_aac_lc")
 )
+
+icecast_out(
+  id="radio_low",
+  mount="/stream-low",
+  name="Radyo Klasik (low bandwidth)",
+  %fdkaac(channels=2, samplerate=44100, bitrate=64, aot="mpeg4_he_aac")
+)
+
+hls_dir = env_or("HLS_DIR", "/var/hls")
+if env_or("HLS_ENABLED", "true") == "true" then
+  output.file.hls(
+    id="radio_hls",
+    playlist="live.m3u8",
+    segment_duration=4.,
+    segments=6,
+    segments_overhead=4,
+    persist_at="#{hls_dir}/.state",
+    # Same filesystem as the output so segment/playlist renames are atomic.
+    temp_dir="#{hls_dir}/.tmp",
+    hls_dir,
+    [
+      ("aac_128", %ffmpeg(format="mpegts", %audio(codec="aac", b="128k", ar=44100, ac=2))),
+      ("aac_64", %ffmpeg(format="mpegts", %audio(codec="aac", b="64k", ar=44100, ac=2)))
+    ],
+    radio
+  )
+end

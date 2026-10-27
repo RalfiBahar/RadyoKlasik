@@ -20,6 +20,21 @@ exports.tokenRequired = (req, res, next) => {
   }
 };
 
+// Legacy admin actions (recordings, announcements, push notifications). The
+// shared-secret token is embedded in the public listener apps, so it must NOT
+// be enough here: require the EJS dashboard's admin session or a staff admin
+// token (Phase 7 studio login).
+exports.adminRequired = async (req, res, next) => {
+  if (req.session && req.session.user) return next();
+  try {
+    const { verifyStaffToken, tokenFromRequest } = require("../services/staffAuth");
+    req.user = await verifyStaffToken(tokenFromRequest(req), ["admin"]);
+    return next();
+  } catch (err) {
+    return res.status(err.status || 401).json({ message: "Admin access required" });
+  }
+};
+
 exports.loginRequired = (req, res, next) => {
   if (req.session && req.session.user) {
     return next();

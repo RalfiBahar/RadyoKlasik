@@ -279,17 +279,17 @@ function AreaChart({ report }: { report: ListenersReport }) {
       >
         {ticks.map((t) => (
           <g key={t}>
-            <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} stroke="#272c34" />
-            <text x={pad.l - 6} y={y(t) + 3} textAnchor="end" fontSize="10" fill="#64748b">
+            <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} stroke="#E3EEE8" />
+            <text x={pad.l - 6} y={y(t) + 3} textAnchor="end" fontSize="10" fill="#56645D">
               {t}
             </text>
           </g>
         ))}
-        <path d={area} fill="#f4632e" opacity="0.18" />
-        <path d={line} fill="none" stroke="#f4632e" strokeWidth="2" strokeLinejoin="round" />
+        <path d={area} fill="#00EDA6" opacity="0.35" />
+        <path d={line} fill="none" stroke="#111111" strokeWidth="2" strokeLinejoin="round" />
         {showPoints &&
           data.map((d, i) => (
-            <circle key={d.t} cx={x(i)} cy={y(d.avg)} r="4" fill="#f4632e" stroke="#1c2026" strokeWidth="2" />
+            <circle key={d.t} cx={x(i)} cy={y(d.avg)} r="4" fill="#111111" stroke="#FFFFFF" strokeWidth="2" />
           ))}
         {data.map((d, i) =>
           i % labelEvery === 0 ? (
@@ -299,7 +299,7 @@ function AreaChart({ report }: { report: ListenersReport }) {
               y={H - 6}
               textAnchor={i === data.length - 1 && i > 0 ? "end" : i === 0 ? "start" : "middle"}
               fontSize="10"
-              fill="#64748b"
+              fill="#56645D"
             >
               {formatBucket(d.t, report.bucket)}
             </text>
@@ -307,8 +307,8 @@ function AreaChart({ report }: { report: ListenersReport }) {
         )}
         {hover != null && (
           <g>
-            <line x1={x(hover)} x2={x(hover)} y1={pad.t} y2={y(0)} stroke="#94a3b8" strokeDasharray="3 3" />
-            <circle cx={x(hover)} cy={y(data[hover].avg)} r="4" fill="#f4632e" stroke="#1c2026" strokeWidth="2" />
+            <line x1={x(hover)} x2={x(hover)} y1={pad.t} y2={y(0)} stroke="#A2B0A9" strokeDasharray="3 3" />
+            <circle cx={x(hover)} cy={y(data[hover].avg)} r="4" fill="#111111" stroke="#FFFFFF" strokeWidth="2" />
           </g>
         )}
       </svg>

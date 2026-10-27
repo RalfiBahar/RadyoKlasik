@@ -23,6 +23,16 @@
 		}
 		format json
 	}
+	# Phase 9: HLS (adaptive AAC) written by Liquidsoap.
+	handle_path /hls/* {
+		root * /srv/hls
+		header Access-Control-Allow-Origin *
+		@playlist path *.m3u8
+		header @playlist Cache-Control "no-cache"
+		@segment path *.ts
+		header @segment Cache-Control "public, max-age=60"
+		file_server
+	}
 	reverse_proxy icecast:8000
 }
 
@@ -36,7 +46,40 @@ http://stream.localhost {
 	import stream_site
 }
 
-# Node control-plane API.
+# Everything admin lives on the API domain:
+#   /            -> redirect to the panel
+#   /panel/...   -> DJ / admin panel (the `studio` container, Next basePath)
+#   everything else -> the Node API, incl. the legacy EJS admin dashboard
+#                      (/auth/login, /dashboard, /chat, ...) and the listener
+#                      routes used by the website and mobile app.
+(api_site) {
+	encode gzip
+	header /panel* {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		# The studio needs the microphone; nothing else may use it.
+		Permissions-Policy "microphone=(self), camera=()"
+	}
+	# /metrics is for the internal scraper only.
+	handle /metrics {
+		respond 404
+	}
+	handle /panel* {
+		reverse_proxy studio:3001
+	}
+	handle {
+		redir / /panel 302
+		reverse_proxy api:8001
+	}
+}
+
 {$API_DOMAIN:api.radyoklasik.online} {
-	reverse_proxy api:8001
+	header Strict-Transport-Security "max-age=31536000"
+	import api_site
+}
+
+# Local test of the single-domain setup without TLS: http://api.localhost/
+http://api.localhost {
+	import api_site
 }

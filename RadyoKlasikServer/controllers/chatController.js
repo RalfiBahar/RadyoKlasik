@@ -1,15 +1,15 @@
 const fs = require("fs");
-const path = require("path");
 const { Router } = require("express");
 const {
   tokenRequired,
   loginRequired,
 } = require("../middlewares/authMiddleware");
 const logger = require("../logger");
+const { chatLimiter } = require("../middlewares/rateLimit");
 const md5 = require("md5");
 
 const router = Router();
-const chatHistoryFilePath = path.join(__dirname, "..", "chatHistory.json");
+const { CHAT_HISTORY_FILE: chatHistoryFilePath } = require("../config/appData");
 
 // Helper function to read chat history from the file
 const readChatHistory = () => {
@@ -42,7 +42,7 @@ router.get("/chats", tokenRequired, (req, res) => {
 });
 
 // Send a new chat message (Regular users)
-router.post("/send_chat", tokenRequired, (req, res) => {
+router.post("/send_chat", tokenRequired, chatLimiter, (req, res) => {
   const { message, sender } = req.body;
 
   if (!message || !sender) {

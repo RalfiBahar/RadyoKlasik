@@ -4,6 +4,7 @@
 
 :root {
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: light;
 }
 
 html,
@@ -11,28 +12,34 @@ body {
   height: 100%;
 }
 
+/* The listener website's page: mint green with the organic shapes
+   (background image set in app/layout.tsx so it follows the base path). */
 body {
-  @apply bg-ink-900 text-slate-100 antialiased;
+  @apply bg-mint text-slate-100 antialiased;
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
 }
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+    /* Disabled = solid grey (half-transparent buttons look muddy on mint). */
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:border-transparent disabled:bg-ink-700 disabled:text-slate-500;
   }
   .btn-primary {
     @apply btn bg-brand text-white hover:bg-brand-600;
   }
   .btn-ghost {
-    @apply btn bg-ink-700 text-slate-200 hover:bg-ink-600;
+    @apply btn border border-ink-600 bg-white text-slate-200 hover:border-brand;
   }
   .btn-danger {
     @apply btn bg-red-600 text-white hover:bg-red-700;
   }
   .card {
-    @apply rounded-xl border border-ink-700 bg-ink-800 p-4;
+    @apply rounded-xl border border-ink-700 bg-white p-4 shadow-sm;
   }
   .input {
-    @apply w-full rounded-md border border-ink-600 bg-ink-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-brand focus:outline-none;
+    @apply w-full rounded-md border border-ink-600 bg-white px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-brand focus:outline-none;
   }
   .badge {
     @apply inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold uppercase tracking-wide;

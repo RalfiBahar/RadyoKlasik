@@ -6,6 +6,8 @@ const autopilot = require("./services/autopilot");
 const settings = require("./services/settings");
 const scheduler = require("./services/scheduler");
 const analyticsCollector = require("./services/analytics/collector");
+const alerts = require("./services/monitoring/alerts");
+const recordingStorage = require("./services/recordingStorage");
 
 const PORT = process.env.PORT || 8001;
 
@@ -30,6 +32,8 @@ server.listen(PORT, () => {
     .then(() => {
       scheduler.start();
       analyticsCollector.start();
+      alerts.start();
+      recordingStorage.start();
       return autopilot.syncToLiquidsoapWithRetry();
     })
     .catch(() => {});

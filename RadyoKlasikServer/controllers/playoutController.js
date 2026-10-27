@@ -88,6 +88,7 @@ exports.metadata = async (req, res) => {
     }
 
     if (source === "autodj" && trackId) rotation.markAired(trackId);
+    require("../services/monitoring/metrics").trackChanges.inc({ source });
 
     await PlayHistory.create({ trackId, source, startedAt: new Date() });
     if (trackId) {
@@ -205,7 +206,8 @@ exports.status = async (req, res) => {
   }
   let listeners = null;
   try {
-    listeners = await icecastStatus.getListenerCount();
+    // Icecast mounts + HLS clients (Phase 9).
+    listeners = await require("../services/analytics/collector").liveListeners();
   } catch (_) {
     listeners = null;
   }
@@ -273,3 +275,31 @@ exports.autopilot = async (req, res) => {
 
 exports.replaygainToLinear = replaygainToLinear;
 exports.annotateUri = annotateUri;
+
+// GET /api/v1/playout/streams — public listening URLs for the panel's monitor
+// and the dashboard. STREAM_PUBLIC_BASE wins; otherwise the stream domain is
+// derived from the API's own (api.<domain> -> stream.<domain>, which also
+// makes http://api.localhost -> http://stream.localhost work locally); last
+// resort is PUBLIC_STREAM_URL's base.
+exports.streams = (req, res) => {
+  let base = process.env.STREAM_PUBLIC_BASE || null;
+  if (!base) {
+    const host = req.get("host") || "";
+    const proto = req.get("x-forwarded-proto") || req.protocol;
+    if (/^api\./i.test(host)) base = `${proto}://${host.replace(/^api\./i, "stream.")}`;
+  }
+  if (!base && process.env.PUBLIC_STREAM_URL) {
+    try {
+      base = new URL(process.env.PUBLIC_STREAM_URL).origin;
+    } catch (_) {
+      base = null;
+    }
+  }
+  base = (base || "http://localhost:8000").replace(/\/$/, "");
+  return res.json({
+    mp3: `${base}/stream`,
+    hd: `${base}/stream-hd`,
+    low: `${base}/stream-low`,
+    hls: `${base}/hls/live.m3u8`,
+  });
+};

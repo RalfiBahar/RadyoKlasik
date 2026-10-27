@@ -17,9 +17,12 @@ const saveNotificationToken = async (req, res) => {
 
   // Not checking for the format of the token as its format might be changed...
 
-  const newNotificationToken = await NotificationToken.create({
+  // The app re-registers the same token on every launch: upsert instead of
+  // crashing on the duplicate primary key.
+  const [newNotificationToken] = await NotificationToken.upsert({
     id: md5(notification_token),
     token: notification_token,
+    date: new Date(),
   });
 
   logger.info("Notification token saved", { newNotificationToken });

@@ -244,7 +244,7 @@ export default function SlotModal({
               type="button"
               aria-label={`Colour ${c}`}
               onClick={() => setColor(c)}
-              className={`h-6 w-6 rounded ${color === c ? "ring-2 ring-white" : ""}`}
+              className={`h-6 w-6 rounded ${color === c ? "ring-2 ring-brand ring-offset-2" : ""}`}
               style={{ background: c }}
             />
           ))}

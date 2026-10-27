@@ -5,12 +5,16 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { canAccess, sectionsFor, type Section } from "@/lib/permissions";
+import Logo from "@/components/Logo";
 
 const NAV: { section: Section; href: string; label: string; icon: string }[] = [
   { section: "dashboard", href: "/dashboard", label: "Dashboard", icon: "◴" },
   { section: "studio", href: "/studio", label: "Virtual Studio", icon: "▣" },
   { section: "library", href: "/library", label: "Media Library", icon: "♫" },
   { section: "playlists", href: "/playlists", label: "Playlists", icon: "≣" },
+  { section: "recordings", href: "/recordings", label: "Recordings", icon: "●" },
+  { section: "chat", href: "/chat", label: "Listener chat", icon: "✉" },
+  { section: "announcements", href: "/announcements", label: "Announcements", icon: "✦" },
   { section: "analytics", href: "/analytics", label: "Analytics", icon: "▤" },
   { section: "scheduling", href: "/scheduling", label: "Scheduling", icon: "▦" },
   { section: "djs", href: "/djs", label: "DJ Management", icon: "☺" },
@@ -45,8 +49,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen overflow-hidden">
       <aside className="flex w-56 shrink-0 flex-col border-r border-ink-700 bg-ink-800">
-        <div className="px-4 py-5 text-lg font-bold tracking-tight text-brand">
-          ◈ Radyo Klasik
+        <div className="px-4 py-5">
+          <Logo caption="Station panel" className="h-9" />
         </div>
         <nav className="flex-1 space-y-1 px-2">
           {navItems.map((item) => {
@@ -57,7 +61,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 href={item.href}
                 className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
                   active
-                    ? "bg-brand/15 text-brand"
+                    ? "bg-brand font-semibold text-white"
                     : "text-slate-300 hover:bg-ink-700"
                 }`}
               >
@@ -80,7 +84,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </button>
         </div>
       </aside>
-      <main className="flex-1 overflow-y-auto scroll-thin bg-ink-900">
+      <main className="flex-1 overflow-y-auto scroll-thin">
         {children}
       </main>
     </div>

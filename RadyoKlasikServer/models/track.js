@@ -16,6 +16,10 @@ const Track = sequelize.define(
     title: { type: DataTypes.STRING, allowNull: false },
     artist: { type: DataTypes.STRING, allowNull: true },
     album: { type: DataTypes.STRING, allowNull: true },
+    composer: { type: DataTypes.STRING, allowNull: true },
+    year: { type: DataTypes.INTEGER, allowNull: true },
+    genre: { type: DataTypes.STRING, allowNull: true },
+    comment: { type: DataTypes.TEXT, allowNull: true },
     type: {
       type: DataTypes.ENUM("song", "jingle", "commercial"),
       allowNull: false,

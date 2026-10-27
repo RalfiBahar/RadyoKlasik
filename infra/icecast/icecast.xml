@@ -8,8 +8,10 @@
   so secrets are never written back into the repo.
 
   Mounts:
-    /stream     -> MP3 128k  (primary, what the web/mobile players consume)
-    /stream-hd  -> AAC 192k  (placeholder for Phase 9 multi-bitrate)
+    /stream      -> MP3 128k       (primary, what the web/mobile players consume)
+    /stream-hd   -> AAC-LC 192k    (high quality)
+    /stream-low  -> HE-AAC 64k     (low bandwidth)
+  (HLS is written to files by Liquidsoap and served by Caddy, not Icecast.)
 -->
 <icecast>
     <location>Earth</location>
@@ -18,7 +20,7 @@
 
     <limits>
         <clients>1000</clients>
-        <sources>4</sources>
+        <sources>6</sources>
         <queue-size>524288</queue-size>
         <client-timeout>30</client-timeout>
         <header-timeout>15</header-timeout>
@@ -61,6 +63,16 @@
         <stream-description>Radyo Klasik — self-hosted AutoDJ (HD)</stream-description>
         <genre>Classical</genre>
         <bitrate>192</bitrate>
+        <type>audio/aac</type>
+        <public>0</public>
+    </mount>
+
+    <mount type="normal">
+        <mount-name>/stream-low</mount-name>
+        <stream-name>Radyo Klasik (low bandwidth)</stream-name>
+        <stream-description>Radyo Klasik — self-hosted AutoDJ (64k)</stream-description>
+        <genre>Classical</genre>
+        <bitrate>64</bitrate>
         <type>audio/aac</type>
         <public>0</public>
     </mount>

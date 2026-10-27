@@ -124,7 +124,6 @@ describe("analytics API", () => {
     await ListenerSession.destroy({ where: {} });
     await ListenerSnapshot.destroy({ where: {} });
     fs.rmSync(logFile, { force: true });
-    await sequelize.close();
   });
 
   test("ingests the Caddy log idempotently", async () => {
@@ -192,4 +191,37 @@ describe("analytics API", () => {
     expect((await request(app).get("/api/v1/analytics/listeners").set("Authorization", DJ)).status).toBe(403);
     expect((await request(app).get("/api/v1/analytics/live").set("Authorization", DJ)).status).toBe(200);
   });
+});
+
+describe("HLS listener tracking", () => {
+  const seg = (ts, ip = "85.105.1.1", ua = "Mozilla/5.0 (iPhone)") =>
+    JSON.stringify({
+      ts,
+      request: { client_ip: ip, method: "GET", uri: "/hls/aac_128_7.ts", headers: { "User-Agent": [ua] } },
+      size: 64000,
+      status: 200,
+    });
+
+  test("a run of segment requests is one session; idle clients are flushed", async () => {
+    collector._resetCaddyOffset();
+    const file = path.join(os.tmpdir(), `hls-${Date.now()}.log`);
+    const t0 = Date.now() / 1000 - 300;
+    const lines = [];
+    for (let i = 0; i < 10; i++) lines.push(seg(t0 + i * 4));
+    fs.writeFileSync(file, lines.join("\n") + "\n");
+    expect(await collector.ingestCaddyLog(file)).toBe(0); // no Icecast-style sessions
+    expect(collector.activeHlsListeners(t0 * 1000 + 40000)).toBe(1);
+    expect(collector.activeHlsListeners(Date.now())).toBe(0);
+    const written = await collector.flushIdleHls(Date.now());
+    expect(written).toBe(1);
+    const row = await ListenerSession.findOne({ where: { source: "hls" } });
+    expect(row).toMatchObject({ country: "TR", device: "iPhone", durationSec: 40 });
+    expect(Number(row.bytes)).toBe(640000);
+    fs.rmSync(file, { force: true });
+  });
+});
+
+afterAll(async () => {
+  await ListenerSession.destroy({ where: { source: "hls" } });
+  await sequelize.close();
 });

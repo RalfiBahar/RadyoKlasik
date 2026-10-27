@@ -17,6 +17,9 @@ const userRoutes = require("./routes/userRoutes");
 const showRoutes = require("./routes/showRoutes");
 const scheduleRoutes = require("./routes/scheduleRoutes");
 const analyticsRoutes = require("./routes/analyticsRoutes");
+const monitoringRoutes = require("./routes/monitoringRoutes");
+const listenerRoutes = require("./routes/listenerRoutes");
+const monitoringController = require("./controllers/monitoringController");
 const playoutController = require("./controllers/playoutController");
 const path = require("path");
 const { sequelize } = require("./config/database");
@@ -52,20 +55,25 @@ if (process.env.EXTRA_CORS_ORIGINS) {
   }
 }
 
-// Use CORS middleware
+// Use CORS middleware. Same-origin requests (the EJS admin dashboard served by
+// this API, e.g. its login form POST) are always allowed. An unknown origin
+// just gets no CORS headers — the browser then blocks it — instead of a 500.
 app.use(
-  cors({
-    origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    credentials: true,
+  cors((req, callback) => {
+    const origin = req.header("Origin");
+    const self = `${req.protocol}://${req.get("host")}`;
+    const allowed = !origin || origin === self || allowedOrigins.includes(origin);
+    callback(null, {
+      origin: allowed,
+      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+      credentials: true,
+    });
   })
 );
+
+// Behind Caddy: trust X-Forwarded-* from private-network proxies so req.ip /
+// req.protocol are the client's (rate limiting, absolute media URLs).
+app.set("trust proxy", "loopback, uniquelocal");
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -81,6 +89,11 @@ app.use(
 app.set("views", path.join(__dirname, "views"));
 app.set("view engine", "ejs");
 
+// Recording thumbnails may live on the app-data volume (config/appData.js);
+// serve them at their historical URL ahead of the bundled public/ folder.
+const { THUMBNAILS_DIR, ensureAppData } = require("./config/appData");
+ensureAppData();
+app.use("/static/assets/thumbnails", express.static(THUMBNAILS_DIR));
 app.use(express.static(path.join(__dirname, "public")));
 
 // Serve uploaded media (artwork, audio) for the library/studio UIs.
@@ -95,6 +108,9 @@ app.use("/api/v1/studio", studioRoutes);
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/shows", showRoutes);
 app.use("/api/v1/analytics", analyticsRoutes);
+app.use("/api/v1/monitoring", monitoringRoutes);
+app.use("/api/v1", listenerRoutes);
+app.get("/metrics", monitoringController.metrics);
 app.use("/api/v1", scheduleRoutes);
 // Public now-playing (no /api/v1 prefix) — consumed by the web + mobile players.
 app.get("/playout/nowplaying", playoutController.nowplaying);

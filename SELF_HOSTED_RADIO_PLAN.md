@@ -964,6 +964,78 @@ clock and schedule labels use station time; browser AGC disabled on the mic.
 
 ---
 
+### Status / decisions / gotchas (Phase 9)
+
+**Status: DONE.** Runbook: `infra/OPERATIONS.md`. Backend tests 156/156.
+
+- **Streams:** `/stream` MP3 128k (unchanged), `/stream-hd` AAC-LC 192k
+  (fdk-aac), `/stream-low` HE-AAC 64k (`aot="mpeg4_he_aac"` — Liquidsoap 2.2
+  has no `_v1` suffix), HLS (`output.file.hls`, ffmpeg AAC 128k + 64k in
+  MPEG-TS, 4 s segments) into the `hls` volume, served by Caddy at `/hls/`.
+  HLS needs `temp_dir` on the same volume (atomic renames) and a `volume-init`
+  one-shot to chown the volume to Liquidsoap's uid 10000. HLS listeners are
+  counted from the Caddy log (segment runs per IP+UA) in analytics, the live
+  listener count and metrics.
+- **Monitoring:** `/metrics` (prom-client; bearer `METRICS_TOKEN`; Caddy 404s it
+  publicly) + built-in alert rules → `ALERT_WEBHOOK_URL` (Slack/Discord/
+  generic). Chaos-tested: stopping Liquidsoap fired playout-down, mounts-off-air
+  and HLS-stale within ~60 s and resolved within 30 s of restart. HLS freshness
+  uses the newest variant playlist (the master `live.m3u8` is written once).
+- **Backups:** `backup` service (postgres:16-alpine): daily `pg_dump -Fc`,
+  weekly media tar, retention, optional rclone offsite; `restore.sh`. Round
+  trip verified into a scratch DB (identical counts) and folder.
+- **Production:** `docker-compose.prod.yml` (only 80/443/8005 published, no
+  seeding, bounded logs, studio container behind Caddy with security headers),
+  `scripts/gen-env.sh` (random secrets), `scripts/deploy.sh` (pull, backup,
+  build, health-check), `.github/workflows/ci.yml`. Studio image = Next
+  standalone (339 MB); its lockfile was regenerated with npm 10 (npm 11 on the
+  dev Mac produced one `npm ci` in Node 20 rejected).
+- **Security:** legacy admin actions (`/recording/start|stop|remove|replace|
+  upload_artwork|...`, `/notification/send_notification`,
+  `delete_all_notification_tokens`, announcement POST) now need the EJS admin
+  session or a staff admin token — the public shared-secret token could
+  previously push notifications to every app user. Login rate limit
+  (10/15 min/IP), chat limit (20/min/IP), `trust proxy` for real client IPs
+  (verified the client IP survives Caddy → studio → API).
+- **Load test** (`infra/loadtest/listeners.js`): 900 concurrent listeners, all
+  real-time, TTFB p95 349 ms, Icecast 6.8% CPU / 8.5 MB. Bandwidth is the limit
+  (~115 Mbps at 900 × 128k) → CDN for HLS if the audience grows.
+- **Legacy data persistence (found during the local walkthrough):** the
+  recorder, recording thumbnails, chat (`chatHistory.json`) and announcement
+  were written *inside* the API container and lost on every rebuild/deploy.
+  They now live on the `appdata` volume (`APP_DATA_DIR`, `config/appData.js`;
+  URLs unchanged, default thumbnail seeded on boot), are included in the
+  weekly files backup, and `restore.sh media` restores them (it previously
+  extracted through a read-only mount — fixed and tested against the live
+  volumes). `scripts/importLegacy.js` imports the old server's SQLite
+  Recordings + NotificationTokens, MP3s, thumbnails, chat and announcement
+  (idempotent; verified on synthetic data in an isolated DB). The EJS admin
+  dashboard (recordings, thumbnails, chat, announcements, notifications) keeps
+  working through its session login (covered by a test).
+- **Not done:** stream protection (token-authenticated mounts) — not needed
+  for a free public station; Grafana dashboards (metrics are ready for any
+  scraper).
+
+---
+
+### One panel, one admin domain (Oct 2026)
+
+- The panel is served at `api.<domain>/panel` (Next `basePath`; Caddy sends
+  `/panel*` to the `studio` container, `/` redirects there, everything else to
+  the API). The separate studio domain is gone; the legacy EJS dashboard stays
+  at `/auth/login` → `/dashboard`, unchanged.
+- Recordings, listener chat, announcement and push moved into the panel via new
+  `/api/v1/{recordings,chat,announcement,notifications}` routes on the same
+  storage as the legacy routes (website, app and EJS dashboard see the same
+  data). One shared recorder (`services/recorder.js`) for both panels, with a
+  6 h safety stop and the show on air as default title; ID3 tagging is now
+  synchronous so archive sizes include the artwork. Push removes
+  DeviceNotRegistered tokens and keeps a send history; the legacy token save
+  no longer crashes on a re-registered token. DJs can record and moderate
+  chat (also from a chat tab in the studio); announcement/push are admin-only.
+
+---
+
 ## Phase 10 — Cutover & RadioJar decommission
 
 **Objective**: Migrate production to self-hosted and retire RadioJar.
@@ -979,6 +1051,16 @@ clock and schedule labels use station time; browser AGC disabled on the mic.
 
 ---
 
+## Backlog
+
+- **Mobile app (RadyoKlasikMobile)** — deferred by the owner (Oct 2026): point
+  it at the self-hosted stream + `/playout/nowplaying`, verify push and past
+  programmes on real devices, ship through the stores. Blocks the final
+  RadioJar cancellation (Phase 10), not the server deploy.
+- Listener website: HD / low-bandwidth / HLS quality selector; announcement on
+  the desktop layout.
+- Auto-record scheduled shows.
+
 ## RadioJar feature parity checklist (acceptance criteria)
 
 - [x] Continuous AutoDJ playout with crossfades and loudness normalization (Phase 2 ✅)
@@ -990,7 +1072,7 @@ clock and schedule labels use station time; browser AGC disabled on the mic.
 - [x] DJ & shows management: roles, access control, guest DJs, per-DJ mic prefs, show/episode profiles, collaborative shows (Phase 7 ✅ — multiple hosts per show)
 - [x] Scheduling / autopilots / breaks (Phase 7 ✅)
 - [x] Analytics: listeners, sessions, listening time, GB, regional, hourly, device, track reports, monthly, export (Phase 6 ✅ — country list rather than a world map)
-- [ ] Multiple stream outputs / encodings + scaling + stream protection (Phase 9)
+- [x] Multiple stream outputs / encodings + scaling (Phase 9 ✅ — MP3 128k, AAC 192k, HE-AAC 64k, HLS; load-tested to 900 listeners; mount tokens not needed)
 - [x] Broadcast link settings surfaced (host/port/mount/credentials) (Phase 5 ✅ read-only Dashboard card; source password masked)
 - [ ] Public listener web + mobile fully on self-hosted stream + nowplaying (Phase 8 — web ✅, mobile pending)
 - [x] Recording of the live stream preserved (Phase 8 ✅ — records from Icecast)

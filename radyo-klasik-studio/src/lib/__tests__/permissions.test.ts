@@ -30,6 +30,14 @@ describe("permissions / route guards by role", () => {
     expect(canAccess("dj", "djs")).toBe(false);
   });
 
+  it("dj records and moderates chat, but can't send announcements or pushes", () => {
+    expect(canAccess("dj", "recordings")).toBe(true);
+    expect(canAccess("dj", "chat")).toBe(true);
+    expect(canAccess("dj", "announcements")).toBe(false);
+    expect(canAccess("admin", "announcements")).toBe(true);
+    expect(canAccess("guest", "chat")).toBe(false);
+  });
+
   it("guest is restricted to studio only", () => {
     expect(canAccess("guest", "studio")).toBe(true);
     expect(canAccess("guest", "library")).toBe(false);

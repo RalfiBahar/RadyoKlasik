@@ -29,7 +29,7 @@ const generateFileName = (prefix = "") => {
 };
 
 const recordingStartTime = Date.now();
-const outputDir = path.join(__dirname, "recordings");
+const outputDir = require("./config/appData").RECORDINGS_DIR;
 const dateString = new Date().toISOString().replace(/:/g, "-");
 const outputFilePath = path.join(outputDir, generateFileName());
 const tempFilePath = path.join(outputDir, generateFileName("temp"));

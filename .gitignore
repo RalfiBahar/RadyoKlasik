@@ -62,3 +62,8 @@ extras/
 
 # Phase 1: local (non-docker) media uploads land here by default (MEDIA_DIR).
 RadyoKlasikServer/media/
+
+# Phase 9 backups (dumps + media archives) and rclone credentials
+infra/backups/
+infra/backup/rclone/*.conf
+infra/legacy/

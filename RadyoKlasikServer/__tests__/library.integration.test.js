@@ -169,6 +169,52 @@ describe("track update", () => {
     expect(res.body.title).toBe("Renamed Song");
     expect(res.body.tags).toEqual(["chill"]);
   });
+
+  test("classical metadata is saved and written into the file's own tags", async () => {
+    const res = await request(app)
+      .patch(`/api/v1/library/tracks/${songId}`)
+      .set("Authorization", AUTH)
+      .send({ title: "Clair de lune", artist: "Seong-Jin Cho", composer: "Claude Debussy", year: 1905, genre: "Classical" });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ composer: "Claude Debussy", year: 1905, genre: "Classical", fileTags: { written: true } });
+    const file = path.join(TRACKS_DIR, fs.readdirSync(TRACKS_DIR).find((f) => res.body.audioUrl && f.endsWith(".mp3") && fs.statSync(path.join(TRACKS_DIR, f)).size > 0 && require("node-id3").read(path.join(TRACKS_DIR, f)).title === "Clair de lune"));
+    const tags = require("node-id3").read(file);
+    expect(tags).toMatchObject({ title: "Clair de lune", artist: "Seong-Jin Cho", composer: "Claude Debussy", genre: "Classical" });
+  });
+
+  test("rejects an empty title and a non-numeric year", async () => {
+    const t = await request(app).patch(`/api/v1/library/tracks/${songId}`).set("Authorization", AUTH).send({ title: " " });
+    expect(t.status).toBe(400);
+    const y = await request(app).patch(`/api/v1/library/tracks/${songId}`).set("Authorization", AUTH).send({ year: "soon" });
+    expect(y.status).toBe(400);
+  });
+
+  test("replacing the artwork embeds it in the file", async () => {
+    // 1x1 PNG
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      "base64"
+    );
+    const res = await request(app)
+      .post(`/api/v1/library/tracks/${songId}/artwork`)
+      .set("Authorization", AUTH)
+      .attach("artwork", png, { filename: "cover.png", contentType: "image/png" });
+    expect(res.status).toBe(200);
+    expect(res.body.artworkUrl).toMatch(/^\/media\/artwork\//);
+    expect(res.body.fileTags.written).toBe(true);
+  });
+
+  test("serves the track audio and bulk-updates metadata", async () => {
+    const audio = await request(app).get(`/api/v1/library/tracks/${songId}/audio`).set("Authorization", AUTH);
+    expect(audio.status).toBe(200);
+    const bulk = await request(app)
+      .post("/api/v1/library/bulk")
+      .set("Authorization", AUTH)
+      .send({ action: "update", trackIds: [songId], fields: { album: "Suite bergamasque", genre: "Impressionism" } });
+    expect(bulk.body).toMatchObject({ affected: 1, fileErrors: 0 });
+    const t = await request(app).get(`/api/v1/library/tracks/${songId}`).set("Authorization", AUTH);
+    expect(t.body).toMatchObject({ album: "Suite bergamasque", genre: "Impressionism", composer: "Claude Debussy" });
+  });
 });
 
 describe("playlists", () => {

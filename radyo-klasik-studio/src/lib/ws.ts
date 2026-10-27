@@ -3,7 +3,13 @@
 // NEXT_PUBLIC_WS_URL. Studio messages are JSON `{ event, data }`.
 
 function wsBase(): string {
-  const base = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8001";
+  // Production serves the panel on the API's own domain, so the page's host
+  // is the API; dev sets NEXT_PUBLIC_WS_URL=ws://localhost:8001.
+  const base =
+    process.env.NEXT_PUBLIC_WS_URL ||
+    (typeof window !== "undefined"
+      ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}`
+      : "ws://localhost:8001");
   return base.replace(/\/$/, "");
 }
 

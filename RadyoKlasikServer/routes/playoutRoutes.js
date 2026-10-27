@@ -16,6 +16,7 @@ router.post("/airstate", internalOnly, playout.airstate);
 
 // Operator status (JWT-protected).
 router.get("/status", staff, playout.status);
+router.get("/streams", staff, playout.streams);
 
 // Phase 3 transport controls (JWT-protected).
 router.post("/skip", staff, playout.skip);

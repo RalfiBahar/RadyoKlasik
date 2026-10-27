@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
+import { BASE_PATH } from "@/lib/basePath";
+import Logo from "@/components/Logo";
 
-// Guest DJ invite landing: /guest#<token>. The token lives in the URL fragment
+// Guest DJ invite landing: /panel/guest#<token>. The token lives in the URL fragment
 // so it never reaches server logs or Referer headers.
 export default function GuestPage() {
   const { loginWithToken, ready } = useAuth();
@@ -20,7 +22,7 @@ export default function GuestPage() {
     }
     try {
       loginWithToken(token);
-      window.history.replaceState(null, "", "/guest");
+      window.history.replaceState(null, "", `${BASE_PATH}/guest`);
       router.replace("/studio");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Invalid invite link");
@@ -28,9 +30,11 @@ export default function GuestPage() {
   }, [ready, loginWithToken, router]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-ink-900 p-6">
+    <div className="flex min-h-screen items-center justify-center p-6">
       <div className="card w-full max-w-sm space-y-2 text-center">
-        <div className="text-2xl font-bold tracking-tight text-brand">◈ Radyo Klasik Studio</div>
+        <div className="flex justify-center">
+          <Logo className="h-12" />
+        </div>
         {error ? (
           <p className="text-sm text-red-400" role="alert">
             {error} Ask the station for a new link.

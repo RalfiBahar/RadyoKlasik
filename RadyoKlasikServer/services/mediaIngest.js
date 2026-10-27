@@ -157,6 +157,10 @@ function extractTags(filePath) {
     title: tags.title || undefined,
     artist: tags.artist || undefined,
     album: tags.album || undefined,
+    composer: tags.composer || undefined,
+    year: parseInt(tags.year, 10) || undefined,
+    genre: tags.genre || undefined,
+    comment: (tags.comment && tags.comment.text) || undefined,
     picture: image
       ? { data: image.imageBuffer, format: image.mime || "image/jpeg" }
       : null,

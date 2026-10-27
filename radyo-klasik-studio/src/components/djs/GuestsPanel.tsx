@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createGuest, deleteUser } from "@/lib/api";
+import { panelUrl } from "@/lib/basePath";
 import type { StaffUser } from "@/lib/types";
 import { Badge, EmptyState, ErrorText, Field } from "@/components/ui";
 
@@ -48,7 +49,7 @@ export default function GuestsPanel({
         accessFrom: new Date(from).toISOString(),
         accessUntil: new Date(until).toISOString(),
       });
-      setLink(`${window.location.origin}/guest#${res.token}`);
+      setLink(`${panelUrl("/guest")}#${res.token}`);
       setName("");
       onChanged();
     } catch (err) {

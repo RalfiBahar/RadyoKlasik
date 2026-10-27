@@ -1,0 +1,66 @@
+# Production overrides (Phase 9). On the VPS, from infra/:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# (deploy.sh wraps this.) Differences from the dev stack:
+#   - Only Caddy (80/443) and the live harbor for external encoders are
+#     published; Postgres, Icecast and the API are private to radyonet.
+#   - Everything admin is on API_DOMAIN: the panel container at /panel, the
+#     API (and the legacy EJS dashboard) everywhere else.
+#   - No demo seeding; bounded container logs; restart always.
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  postgres:
+    ports: !reset []
+    restart: always
+    logging: *logging
+
+  icecast:
+    ports: !reset []
+    restart: always
+    logging: *logging
+
+  liquidsoap:
+    restart: always
+    logging: *logging
+    # External encoders (BUTT, Mixxx, ...) can stream to the /live harbor.
+    ports:
+      - "${LIVE_HARBOR_PORT:-8005}:${LIVE_HARBOR_PORT:-8005}"
+
+  api:
+    ports: !reset []
+    restart: always
+    logging: *logging
+    environment:
+      SEED_ON_START: "false"
+      PUBLIC_API_URL: https://${API_DOMAIN:-api.radyoklasik.online}
+
+  studio:
+    build:
+      context: ../radyo-klasik-studio
+      args:
+        # Same domain as the API, so WebSockets go to the page's own host.
+        NEXT_PUBLIC_WS_URL: ""
+        # Empty: the panel asks the API, which answers stream.<domain>.
+        NEXT_PUBLIC_STREAM_URL: ""
+        NEXT_PUBLIC_BROADCAST_HOST: ${STREAM_DOMAIN:-stream.radyoklasik.online}
+        NEXT_PUBLIC_BROADCAST_PORT: ${LIVE_HARBOR_PORT:-8005}
+    restart: always
+    depends_on:
+      - api
+    networks: [radyonet]
+    logging: *logging
+
+  caddy:
+    restart: always
+    logging: *logging
+
+  backup:
+    restart: always
+    logging: *logging

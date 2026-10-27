@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  getStreamUrls,
   getLiveAnalytics,
   getNowPlaying,
   getPlayoutStatus,
@@ -19,13 +20,21 @@ const BROADCAST = {
   mount: process.env.NEXT_PUBLIC_BROADCAST_MOUNT || "/live",
   user: process.env.NEXT_PUBLIC_BROADCAST_USER || "source",
   encoding: process.env.NEXT_PUBLIC_BROADCAST_ENCODING || "MP3 128k",
-  stream: process.env.NEXT_PUBLIC_STREAM_URL || "http://localhost:8000/stream",
 };
 
 export default function DashboardStats() {
   const [status, setStatus] = useState<PlayoutStatus | null>(null);
   const [np, setNp] = useState<NowPlayingPublic | null>(null);
   const [live, setLive] = useState<LiveAnalytics | null>(null);
+  // Public stream addresses come from the API (stream.<domain> in production).
+  const [streamUrl, setStreamUrl] = useState<string | null>(process.env.NEXT_PUBLIC_STREAM_URL || null);
+
+  useEffect(() => {
+    if (streamUrl) return;
+    getStreamUrls()
+      .then((s) => setStreamUrl(s.mp3))
+      .catch(() => {});
+  }, [streamUrl]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -169,7 +178,7 @@ export default function DashboardStats() {
           <div className="mt-4 rounded-md bg-ink-900 px-3 py-2 text-xs text-slate-400">
             <span className="text-slate-500">Public stream URL</span>
             <div className="mt-1 break-all font-mono text-slate-300">
-              {BROADCAST.stream}
+              {streamUrl || "—"}
             </div>
           </div>
         </section>

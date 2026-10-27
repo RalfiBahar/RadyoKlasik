@@ -21,7 +21,9 @@ const uploadFields = upload.fields([
 
 router.get("/tracks", staff, library.listTracks);
 router.get("/tracks/:id/waveform", staff, library.getWaveform);
+router.get("/tracks/:id/audio", staff, library.trackAudio);
 router.get("/tracks/:id", staff, library.getTrack);
+router.post("/tracks/:id/artwork", editors, upload.single("artwork"), library.uploadTrackArtwork);
 router.post("/tracks", editors, uploadFields, library.uploadTrack);
 router.patch("/tracks/:id", editors, library.updateTrack);
 router.delete("/tracks/:id", editors, library.deleteTrack);

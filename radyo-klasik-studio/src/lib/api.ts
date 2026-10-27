@@ -1,5 +1,13 @@
 import { getToken, clearAuth } from "./token";
 import type {
+  Announcement,
+  ArtworkItem,
+  ChatMessage,
+  PushOverview,
+  PushSend,
+  RecorderStatus,
+  RecordingItem,
+  RecordingStorageStats,
   AnalyticsPeriod,
   DeviceRow,
   HourlyRow,
@@ -213,10 +221,15 @@ export function uploadTrack(
   });
 }
 
+export type TrackPatch = Partial<
+  Pick<Track, "title" | "artist" | "album" | "type" | "tags" | "composer" | "genre" | "comment">
+> & { year?: number | null };
+
+// The response says whether the audio file's own tags were updated too.
 export function updateTrack(
   id: string,
-  patch: Partial<Pick<Track, "title" | "artist" | "album" | "type" | "tags">>
-): Promise<Track> {
+  patch: TrackPatch
+): Promise<Track & { fileTags?: { written: boolean; error?: string } }> {
   return apiFetch<Track>(`/api/v1/library/tracks/${id}`, {
     method: "PATCH",
     body: patch,
@@ -227,14 +240,15 @@ export function deleteTrack(id: string): Promise<{ deleted: boolean; id: string 
   return apiFetch(`/api/v1/library/tracks/${id}`, { method: "DELETE" });
 }
 
-export type BulkAction = "tag" | "delete" | "addToPlaylist";
+export type BulkAction = "tag" | "delete" | "addToPlaylist" | "update";
 
 export function bulkTracks(payload: {
   action: BulkAction;
   trackIds: string[];
   tags?: string[];
   playlistId?: string;
-}): Promise<{ action: BulkAction; affected: number }> {
+  fields?: Partial<{ artist: string; album: string; composer: string; genre: string; year: number | null; type: TrackType }>;
+}): Promise<{ action: BulkAction; affected: number; fileErrors?: number }> {
   return apiFetch("/api/v1/library/bulk", { method: "POST", body: payload });
 }
 
@@ -539,4 +553,127 @@ export async function downloadAnalyticsCsv(
   a.download = `radyoklasik-${type}-${period}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// --- Recordings (past programmes) --------------------------------------------
+
+export function listRecordings(params: { q?: string; limit?: number; offset?: number } = {}): Promise<{
+  items: RecordingItem[];
+  total: number;
+  storage?: RecordingStorageStats;
+}> {
+  return apiFetch("/api/v1/recordings", { query: params });
+}
+
+// Send (or re-send) a recording to R2 now.
+export function uploadRecordingToCloud(id: string): Promise<RecordingItem> {
+  return apiFetch(`/api/v1/recordings/${id}/upload`, { method: "POST" });
+}
+
+export function updateRecording(
+  id: string,
+  patch: Partial<{ title: string; artist: string; album: string; artwork: string | null; special: string | null }>
+): Promise<RecordingItem> {
+  return apiFetch(`/api/v1/recordings/${id}`, { method: "PATCH", body: patch });
+}
+
+export function replaceRecordingFile(id: string, file: File): Promise<RecordingItem> {
+  const fd = new FormData();
+  fd.append("file", file);
+  return apiFetch(`/api/v1/recordings/${id}/file`, { method: "PUT", formData: fd });
+}
+
+export function deleteRecording(id: string): Promise<{ deleted: boolean }> {
+  return apiFetch(`/api/v1/recordings/${id}`, { method: "DELETE" });
+}
+
+// <audio> can't send headers, so the preview URL carries the token.
+export function recordingAudioUrl(id: string): string {
+  return `/api/v1/recordings/${id}/audio?token=${encodeURIComponent(getToken() || "")}`;
+}
+
+export function getRecorder(): Promise<RecorderStatus> {
+  return apiFetch("/api/v1/recordings/recorder");
+}
+
+export function startRecorder(payload: { title?: string; artist?: string; artwork?: string | null }): Promise<RecorderStatus> {
+  return apiFetch("/api/v1/recordings/recorder/start", { method: "POST", body: payload });
+}
+
+export function stopRecorder(): Promise<RecorderStatus> {
+  return apiFetch("/api/v1/recordings/recorder/stop", { method: "POST" });
+}
+
+export function listArtworks(): Promise<{ items: ArtworkItem[] }> {
+  return apiFetch("/api/v1/recordings/artworks");
+}
+
+export function uploadArtwork(file: File): Promise<{ file: string; url: string }> {
+  const fd = new FormData();
+  fd.append("artwork", file);
+  return apiFetch("/api/v1/recordings/artworks", { method: "POST", formData: fd });
+}
+
+export function deleteArtwork(file: string): Promise<{ deleted: boolean }> {
+  return apiFetch(`/api/v1/recordings/artworks/${encodeURIComponent(file)}`, { method: "DELETE" });
+}
+
+// --- Listener chat, announcement, push -----------------------------------------
+
+export function listChat(): Promise<{ items: ChatMessage[] }> {
+  return apiFetch("/api/v1/chat");
+}
+
+export function postChat(message: string, sender?: string): Promise<ChatMessage> {
+  return apiFetch("/api/v1/chat", { method: "POST", body: { message, sender } });
+}
+
+export function deleteChat(id: string): Promise<{ deleted: boolean }> {
+  return apiFetch(`/api/v1/chat/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function clearChat(): Promise<{ cleared: boolean }> {
+  return apiFetch("/api/v1/chat", { method: "DELETE" });
+}
+
+export function getAnnouncement(): Promise<Announcement> {
+  return apiFetch("/api/v1/announcement");
+}
+
+export function setAnnouncement(text: string): Promise<Announcement> {
+  return apiFetch("/api/v1/announcement", { method: "PUT", body: { text } });
+}
+
+export function clearAnnouncement(): Promise<Announcement> {
+  return apiFetch("/api/v1/announcement", { method: "DELETE" });
+}
+
+export function getPushOverview(): Promise<PushOverview> {
+  return apiFetch("/api/v1/notifications");
+}
+
+export function sendPush(payload: { title: string; subtitle?: string; body: string }): Promise<PushSend> {
+  return apiFetch("/api/v1/notifications", { method: "POST", body: payload });
+}
+
+export function uploadTrackArtwork(id: string, file: File): Promise<Track & { fileTags?: { written: boolean } }> {
+  const fd = new FormData();
+  fd.append("artwork", file);
+  return apiFetch(`/api/v1/library/tracks/${id}/artwork`, { method: "POST", formData: fd });
+}
+
+// <audio> can't send headers, so the URL carries the token.
+export function trackAudioUrl(id: string): string {
+  return `/api/v1/library/tracks/${id}/audio?token=${encodeURIComponent(getToken() || "")}`;
+}
+
+export interface StreamUrls {
+  mp3: string;
+  hd: string;
+  low: string;
+  hls: string;
+}
+
+export function getStreamUrls(): Promise<StreamUrls> {
+  return apiFetch("/api/v1/playout/streams");
 }

@@ -26,6 +26,11 @@ const logger = require("../../logger");
 
 const MIN_SESSION_SEC = Number(process.env.ANALYTICS_MIN_SESSION_SEC || 5);
 const STREAM_PATH_RE = /^\/stream[\w-]*(\?|$)/;
+const HLS_SEGMENT_RE = /^\/hls\/[\w-]+\.ts(\?|$)/;
+// HLS players fetch a segment every few seconds; a gap longer than this ends
+// the session, and a client seen within HLS_ACTIVE_SEC counts as listening now.
+const HLS_IDLE_SEC = Number(process.env.HLS_IDLE_SEC || 60);
+const HLS_ACTIVE_SEC = Number(process.env.HLS_ACTIVE_SEC || 30);
 
 function models() {
   return require("../../models");
@@ -70,6 +75,81 @@ function sessionFromCaddyLine(line) {
   };
 }
 
+// --- HLS (Phase 9) -------------------------------------------------------------
+// HLS listeners never touch Icecast: each one is a run of segment requests in
+// the Caddy log from the same IP + user agent. Runs are accumulated here and
+// written as a session once the client goes idle.
+const hlsClients = new Map(); // key -> { ip, ua, first, last, bytes }
+
+function trackHlsLine(line) {
+  let d;
+  try {
+    d = JSON.parse(line);
+  } catch (_) {
+    return false;
+  }
+  const r = d && d.request;
+  if (!r || r.method !== "GET" || d.status !== 200) return false;
+  if (!HLS_SEGMENT_RE.test(String(r.uri || ""))) return false;
+  const ip = r.client_ip || r.remote_ip || null;
+  const ua = (r.headers && r.headers["User-Agent"] && r.headers["User-Agent"][0]) || null;
+  const at = Number(d.ts) * 1000;
+  const key = `${ip}|${ua}`;
+  const c = hlsClients.get(key);
+  if (c && at - c.last <= HLS_IDLE_SEC * 1000) {
+    c.last = Math.max(c.last, at);
+    c.bytes += Number(d.size) || 0;
+  } else {
+    if (c) flushHlsClient(key, c);
+    hlsClients.set(key, { ip, ua, first: at, last: at, bytes: Number(d.size) || 0 });
+  }
+  return true;
+}
+
+const pendingHls = [];
+function flushHlsClient(key, c) {
+  hlsClients.delete(key);
+  // The last segment covers a few more seconds of audio after its request.
+  const dur = Math.round((c.last - c.first) / 1000) + 4;
+  if (dur < MIN_SESSION_SEC) return;
+  pendingHls.push({
+    externalId: `hls:${hashIp(c.ip)}:${hashIp(c.ua)}:${c.first}`,
+    source: "hls",
+    mount: "/hls",
+    ipHash: hashIp(c.ip),
+    country: countryFromIp(c.ip),
+    device: deviceFromUserAgent(c.ua),
+    userAgent: c.ua ? c.ua.slice(0, 512) : null,
+    startedAt: new Date(c.first),
+    endedAt: new Date(c.last + 4000),
+    durationSec: dur,
+    bytes: c.bytes,
+  });
+}
+
+// Close HLS clients idle for longer than HLS_IDLE_SEC and persist them.
+async function flushIdleHls(now = Date.now()) {
+  for (const [key, c] of hlsClients) {
+    if (now - c.last > HLS_IDLE_SEC * 1000) flushHlsClient(key, c);
+  }
+  if (!pendingHls.length) return 0;
+  const rows = pendingHls.splice(0);
+  await models().ListenerSession.bulkCreate(rows, { ignoreDuplicates: true });
+  return rows.length;
+}
+
+// HLS clients that fetched a segment recently (they're listening right now).
+function activeHlsListeners(now = Date.now()) {
+  let n = 0;
+  for (const c of hlsClients.values()) if (now - c.last <= HLS_ACTIVE_SEC * 1000) n += 1;
+  return n;
+}
+
+// Everyone listening now: Icecast mounts + HLS.
+async function liveListeners() {
+  return (await icecastStatus.getListenerCount()) + activeHlsListeners();
+}
+
 let logOffset = 0;
 let partial = "";
 
@@ -103,7 +183,10 @@ async function ingestCaddyLog(file = process.env.CADDY_STREAM_LOG) {
   }
   const lines = chunk.split("\n");
   partial = lines.pop(); // incomplete trailing line
-  const rows = lines.map(sessionFromCaddyLine).filter(Boolean);
+  const rows = lines
+    .filter((line) => !trackHlsLine(line))
+    .map(sessionFromCaddyLine)
+    .filter(Boolean);
   if (rows.length) {
     await models().ListenerSession.bulkCreate(rows, { ignoreDuplicates: true });
   }
@@ -213,7 +296,7 @@ async function syncIcecastClients(now = new Date()) {
 // --- Snapshots ---------------------------------------------------------------
 
 async function snapshot(now = new Date()) {
-  const listeners = await icecastStatus.getListenerCount();
+  const listeners = await liveListeners();
   const at = new Date(Math.floor(now.getTime() / 60000) * 60000);
   await models().ListenerSnapshot.upsert({ at, listeners });
   return listeners;
@@ -235,7 +318,10 @@ function start() {
   if (timers.length || process.env.ANALYTICS_ENABLED === "false") return;
   every(60000, () => snapshot(), "snapshot");
   every(Number(process.env.ANALYTICS_POLL_MS || 20000), () => syncIcecastClients(), "icecast poll");
-  every(15000, () => ingestCaddyLog(), "caddy log");
+  every(15000, async () => {
+    await ingestCaddyLog();
+    await flushIdleHls();
+  }, "caddy log");
   every(24 * 3600 * 1000, () => prune(), "prune");
   logger.info("analytics collector started");
 }
@@ -255,12 +341,17 @@ async function prune(days = Number(process.env.ANALYTICS_RETENTION_DAYS || 400))
 function _resetCaddyOffset() {
   logOffset = 0;
   partial = "";
+  hlsClients.clear();
+  pendingHls.length = 0;
 }
 
 module.exports = {
   sessionFromCaddyLine,
   parseListClients,
   ingestCaddyLog,
+  flushIdleHls,
+  activeHlsListeners,
+  liveListeners,
   syncIcecastClients,
   snapshot,
   start,

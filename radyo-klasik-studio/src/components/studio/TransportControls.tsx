@@ -77,13 +77,13 @@ export function Toggle({
     >
       <span className="text-xs uppercase">{label}</span>
       <span
-        className={`relative h-5 w-9 rounded-full transition-colors ${
-          on ? "bg-brand" : "bg-ink-600"
+        className={`inline-flex h-5 w-9 shrink-0 items-center rounded-full px-0.5 transition-colors ${
+          on ? "bg-brand" : "bg-ink-600 ring-1 ring-inset ring-black/10"
         }`}
       >
         <span
-          className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
-            on ? "translate-x-4" : "translate-x-0.5"
+          className={`h-4 w-4 rounded-full bg-white shadow transition-transform ${
+            on ? "translate-x-4" : "translate-x-0"
           }`}
         />
       </span>

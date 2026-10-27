@@ -4,28 +4,21 @@ const { Router } = require("express");
 const multer = require("multer");
 const {
   tokenRequired,
+  adminRequired,
   loginRequired,
 } = require("../middlewares/authMiddleware");
 const Recording = require("../models/recording");
 const { sequelize } = require("../config/database");
 const mime = require("mime-types");
 const md5 = require("md5");
-const NodeID3 = require("node-id3");
 const { Sequelize } = require("sequelize");
-const { spawn } = require("child_process");
 const convertToHttps = require("../utils/convertToHttps");
 const logger = require("../logger");
 
-// Self-hosted stream sources (RadioJar retired). The recorder pulls the air
-// mix from Icecast over the private compose network; listeners/mobile get the
-// public URL from /get_redirect.
-function recordStreamUrl() {
-  if (process.env.RECORD_STREAM_URL) return process.env.RECORD_STREAM_URL;
-  const host = process.env.ICECAST_HOST || "icecast";
-  const port = process.env.ICECAST_PORT || 8000;
-  return `http://${host}:${port}/stream`;
-}
+const recorder = require("../services/recorder");
+const recordingStorage = require("../services/recordingStorage");
 
+// Listener apps get the public stream URL from /get_redirect.
 function publicStreamUrl() {
   return (
     process.env.PUBLIC_STREAM_URL || "https://stream.radyoklasik.online/stream"
@@ -34,18 +27,9 @@ function publicStreamUrl() {
 const router = Router();
 const upload = multer();
 
-let isRecording = false;
-let recordThread = null;
-let audioData = Buffer.from([]);
-const recordingsDir = path.join(__dirname, "..", "recordings");
-const thumbnailsDir = path.join(
-  __dirname,
-  "..",
-  "public",
-  "static",
-  "assets",
-  "thumbnails"
-);
+// Recordings + thumbnails live on the persistent app-data volume in docker.
+const { RECORDINGS_DIR: recordingsDir, THUMBNAILS_DIR: thumbnailsDir, ANNOUNCEMENT_FILE } =
+  require("../config/appData");
 if (!fs.existsSync(thumbnailsDir)) {
   fs.mkdirSync(thumbnailsDir, { recursive: true });
   logger.info("Thumbnails directory created");
@@ -64,145 +48,38 @@ function getFileHash(fileContent) {
   return md5(fileContent);
 }
 
-// Helper function to add metadata to MP3 files
-function addMetadata(filePath, title, artist, album, artworkPath) {
-  logger.info("Adding metadata to file", { filePath, artworkPath });
-  const tags = {
-    title: title,
-    artist: artist,
-    album: album,
-    APIC: artworkPath,
-  };
-
-  NodeID3.write(tags, filePath, (err) => {
-    if (err) {
-      logger.error("Error writing ID3 tags:", err);
+// Start/stop/status delegate to the shared recorder (services/recorder.js),
+// which the panel's /api/v1/recordings also uses — one recorder at a time.
+// Responses are unchanged for the EJS dashboard.
+router.post("/start", adminRequired, (req, res) => {
+  try {
+    recorder.start({ artwork: req.body.selected_artwork || null, startedBy: "dashboard" });
+    res.json({ message: "Recording started" });
+  } catch (err) {
+    if (err.code === "BUSY") {
+      return res.status(400).json({ message: "Recording already in progress" });
     }
-  });
-}
-
-// Start recording route
-router.post("/start", tokenRequired, (req, res) => {
-  if (isRecording) {
-    return res.status(400).json({ message: "Recording already in progress" });
+    logger.error("Recording start failed", { error: String(err) });
+    return res.status(500).json({ message: String(err) });
   }
-
-  const url = recordStreamUrl();
-
-  const scriptPath = path.join(__dirname, "..", "record.js");
-  recordingProcess = spawn("node", [scriptPath, url], {
-    stdio: ["inherit", "inherit", "inherit", "ipc"],
-  });
-  isRecording = true;
-  recordingStartTime = Date.now();
-  logger.info("Recording started", { url });
-
-  durationInterval = setInterval(() => {
-    const elapsedSeconds = Math.floor((Date.now() - recordingStartTime) / 1000);
-    logger.info(`Recording duration: ${elapsedSeconds} seconds`);
-  }, 1000);
-
-  recordingProcess.on("message", async (message) => {
-    if (message.status === "finished") {
-      logger.info("Recording finished, processing the file", {
-        duration: message.duration,
-      });
-      // Apply metadata and add to the database
-      const filePath = message.filePath;
-      const duration = message.duration;
-      const fileName = path.basename(filePath);
-      const currDate = new Date()
-        .toLocaleDateString("en-GB")
-        .replace(/\//g, ".");
-      const selectedArtwork = req.body.selected_artwork;
-
-      let artworkPath;
-      if (selectedArtwork) {
-        artworkPath = path.join(thumbnailsDir, selectedArtwork);
-      } else {
-        const listOfFiles = fs.readdirSync(thumbnailsDir);
-        artworkPath = path.join(
-          thumbnailsDir,
-          listOfFiles.sort(
-            (a, b) =>
-              fs.statSync(path.join(thumbnailsDir, b)).mtime.getTime() -
-              fs.statSync(path.join(thumbnailsDir, a)).mtime.getTime()
-          )[0]
-        );
-      }
-
-      const relativeArtworkPath = path.relative(
-        path.join(__dirname, "../public"),
-        artworkPath
-      );
-
-      logger.info("Adding metadata", { artworkPath });
-      addMetadata(
-        filePath,
-        "Morning Delight",
-        `Bant Yayini (${currDate})`,
-        "",
-        artworkPath
-      );
-
-      const recordingSize = fs.statSync(filePath).size / (1024 * 1024); // size in MB
-      const newRecording = await Recording.create({
-        id: getFileHash(filePath),
-        filename: fileName,
-        stream: `recording/recordings/${fileName}`,
-        title: "Morning Delight",
-        artist: `Bant Yayini (${currDate})`,
-        album: "",
-        artwork: relativeArtworkPath,
-        duration: Math.floor(duration), // duration in seconds
-        size: recordingSize, // in MB
-        play_count: 0,
-        date: new Date(),
-      });
-
-      logger.info("Recording processed and saved", { newRecording });
-    } else if (message.status === "error") {
-      logger.error("Recording process encountered an error", {
-        error: message.error,
-      });
-    } else if (message.status === "stopped") {
-      logger.info("Recording stopped gracefully");
-    }
-  });
-
-  recordingProcess.on("exit", (code) => {
-    logger.info(`Recording process exited with code ${code}`);
-    isRecording = false;
-    recordingProcess = null;
-    recordingStartTime = null;
-    clearInterval(durationInterval);
-  });
-
-  res.json({ message: "Recording started" });
 });
 
-// Stop recording route
-router.post("/stop", tokenRequired, (req, res) => {
-  if (!isRecording) {
+router.post("/stop", adminRequired, (req, res) => {
+  try {
+    recorder.stop();
+    res.json({ message: "Recording stop signal sent" });
+  } catch (err) {
     return res.status(400).json({ message: "No recording in progress" });
   }
-
-  recordingProcess.send("stop");
-  isRecording = false;
-  recordingStartTime = null;
-  clearInterval(durationInterval);
-  logger.info("Recording stop signal sent");
-  res.json({ message: "Recording stop signal sent" });
 });
 
-// Status route
-router.get("/status", tokenRequired, (req, res) => {
-  if (isRecording) {
-    const elapsedSeconds = Math.floor((Date.now() - recordingStartTime) / 1000);
+router.get("/status", adminRequired, (req, res) => {
+  const st = recorder.status();
+  if (st.recording) {
     res.json({
       message: "Recording in progress",
       is_recording: true,
-      elapsed_time: `${elapsedSeconds}`,
+      elapsed_time: `${st.elapsedSec}`,
     });
   } else {
     res.json({ message: "No recording in progress", is_recording: false });
@@ -220,13 +97,26 @@ router.get("/recordings/:filename", tokenRequired, async (req, res) => {
       return res.status(404).json({ error: "Recording not found" });
     }
 
+    const where = await recordingStorage.resolvePlayback(recording);
+    if (where.missing) {
+      logger.warn("Recording file missing", { filename });
+      return res.status(404).json({ error: "Recording file missing" });
+    }
+
     recording.play_count += 1;
     await recording.save();
     logger.info("Retrieving recording file", {
       filename,
       play_count: recording.play_count,
+      from: where.redirect ? "r2" : "disk",
     });
-    return res.sendFile(path.join(recordingsDir, filename));
+    // In R2: same URL for the apps, the player just follows the redirect and
+    // seeks against R2 directly.
+    if (where.redirect) {
+      res.set("Cache-Control", "no-store");
+      return res.redirect(302, where.redirect);
+    }
+    return res.sendFile(where.file);
   } catch (e) {
     logger.error("Error retrieving recording file", { error: e });
     return res.status(404).json({ error: String(e) });
@@ -325,7 +215,7 @@ async function getFinalMp3Url(baseUrl) {
 }
 
 // Upload artwork
-router.post("/upload_artwork", upload.single("artwork"), async (req, res) => {
+router.post("/upload_artwork", adminRequired, upload.single("artwork"), async (req, res) => {
   const file = req.file;
   if (!file) {
     logger.warn("No file part in upload request");
@@ -350,7 +240,7 @@ router.post("/upload_artwork", upload.single("artwork"), async (req, res) => {
 });
 
 // Get artworks list
-router.get("/get_artworks", tokenRequired, (req, res) => {
+router.get("/get_artworks", adminRequired, (req, res) => {
   try {
     const artworks = fs
       .readdirSync(thumbnailsDir)
@@ -371,7 +261,7 @@ router.get("/get_artworks", tokenRequired, (req, res) => {
 // Replace recording
 router.post(
   "/replace",
-  tokenRequired,
+  adminRequired,
   upload.single("replacement"),
   async (req, res) => {
     const recordingId = req.body.recording_id;
@@ -437,6 +327,7 @@ router.post(
       }
 
       await existingRecording.save();
+      await recordingStorage.afterLocalChange(existingRecording);
       logger.info("Recording metadata updated after replacement", {
         recordingId,
       });
@@ -451,7 +342,7 @@ router.post(
 );
 
 // Remove recording
-router.delete("/remove/:recording_id", tokenRequired, async (req, res) => {
+router.delete("/remove/:recording_id", adminRequired, async (req, res) => {
   const recordingId = req.params.recording_id;
 
   try {
@@ -463,11 +354,7 @@ router.delete("/remove/:recording_id", tokenRequired, async (req, res) => {
       return res.status(404).json({ error: "Recording not found" });
     }
 
-    const recordingPath = path.join(recordingsDir, existingRecording.filename);
-    if (fs.existsSync(recordingPath)) {
-      fs.unlinkSync(recordingPath);
-    }
-
+    await recordingStorage.removeFiles(existingRecording);
     await existingRecording.destroy();
 
     logger.info("Recording removed successfully", { recordingId });
@@ -481,7 +368,7 @@ router.delete("/remove/:recording_id", tokenRequired, async (req, res) => {
 // Remove artwork
 router.delete(
   "/remove_artwork/:artwork_filename",
-  tokenRequired,
+  adminRequired,
   async (req, res) => {
     const artworkFilename = req.params.artwork_filename;
     const artworkPath = path.join(thumbnailsDir, artworkFilename);
@@ -523,10 +410,10 @@ router.delete(
   }
 );
 
-const announcementFilePath = path.join(__dirname, "..", "announcement.txt");
+const announcementFilePath = ANNOUNCEMENT_FILE;
 
 // Create or overwrite announcement
-router.post("/announcement", tokenRequired, async (req, res) => {
+router.post("/announcement", adminRequired, async (req, res) => {
   const { announcement } = req.body;
 
   if (!announcement) {

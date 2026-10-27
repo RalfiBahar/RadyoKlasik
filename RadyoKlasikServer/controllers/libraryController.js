@@ -14,6 +14,7 @@ const {
 } = require("../models");
 const { TRACKS_DIR, ARTWORK_DIR, ensureMediaDirs } = require("../config/storage");
 const ingest = require("../services/mediaIngest");
+const { writeFileTags } = require("../services/fileTags");
 const logger = require("../logger");
 
 const TRACK_TYPES = ["song", "jingle", "commercial"];
@@ -38,6 +39,11 @@ function serializeTrack(track, tags) {
     title: track.title,
     artist: track.artist,
     album: track.album,
+    composer: track.composer || null,
+    year: track.year || null,
+    genre: track.genre || null,
+    comment: track.comment || null,
+    format: path.extname(track.filePath || "").slice(1).toLowerCase() || null,
     type: track.type,
     duration: track.duration,
     bitrate: track.bitrate,
@@ -45,6 +51,7 @@ function serializeTrack(track, tags) {
     loudnessLufs: track.loudnessLufs,
     replaygain: track.replaygain,
     waveformUrl: `/api/v1/library/tracks/${track.id}/waveform`,
+    audioUrl: `/api/v1/library/tracks/${track.id}/audio`,
     artworkUrl: artworkUrl(track.artworkPath),
     tags: tagNames,
     size: track.size != null ? Number(track.size) : null,
@@ -219,6 +226,10 @@ exports.uploadTrack = async (req, res) => {
           title,
           artist: artistName,
           album: albumTitle,
+          composer: overrides.composer || analysis.tags.composer || null,
+          year: parseInt(overrides.year, 10) || analysis.tags.year || null,
+          genre: overrides.genre || analysis.tags.genre || null,
+          comment: overrides.comment || analysis.tags.comment || null,
           type,
           duration: analysis.duration,
           filePath: relPath,
@@ -386,12 +397,22 @@ exports.updateTrack = async (req, res) => {
   if (!track) return res.status(404).json({ error: "Track not found" });
 
   try {
-    const { title, artist, album, type, tags } = req.body || {};
+    const { title, artist, album, type, tags, composer, year, genre, comment } = req.body || {};
     const tagNames = normalizeTags(tags);
+    if (title !== undefined && !String(title).trim()) {
+      return res.status(400).json({ error: "title is required" });
+    }
+    if (year !== undefined && year !== null && year !== "" && !(Number.isInteger(Number(year)) && Number(year) > 0 && Number(year) < 3000)) {
+      return res.status(400).json({ error: "year must be a number" });
+    }
 
     await sequelize.transaction(async (transaction) => {
       const updates = {};
-      if (title !== undefined) updates.title = title;
+      if (title !== undefined) updates.title = String(title).trim();
+      if (composer !== undefined) updates.composer = composer || null;
+      if (year !== undefined) updates.year = year === "" || year === null ? null : Number(year);
+      if (genre !== undefined) updates.genre = genre || null;
+      if (comment !== undefined) updates.comment = comment || null;
       if (artist !== undefined) {
         updates.artist = artist || null;
         const artistRow = await resolveArtist(artist, transaction);
@@ -422,11 +443,68 @@ exports.updateTrack = async (req, res) => {
         { model: Tag, as: "tagList", attributes: ["name"], through: { attributes: [] } },
       ],
     });
-    return res.json(serializeTrack(reloaded));
+    // Keep the audio file's own tags in step with the library.
+    const fileTags = await syncFileTags(reloaded);
+    return res.json({ ...serializeTrack(reloaded), fileTags });
   } catch (err) {
     logger.error("Update track failed", { error: String(err) });
     return res.status(500).json({ error: String(err) });
   }
+};
+
+function trackFile(track) {
+  return path.join(TRACKS_DIR, path.basename(track.filePath));
+}
+
+// Write the track's library metadata (and optionally a new cover) into its
+// audio file. Best-effort: the library is the source of truth either way.
+async function syncFileTags(track, artworkAbs = null) {
+  const file = trackFile(track);
+  if (!fs.existsSync(file)) return { written: false, error: "audio file missing" };
+  return writeFileTags(
+    file,
+    {
+      title: track.title,
+      artist: track.artist,
+      album: track.album,
+      composer: track.composer,
+      year: track.year,
+      genre: track.genre,
+      comment: track.comment,
+    },
+    artworkAbs
+  );
+}
+
+// --- POST /api/v1/library/tracks/:id/artwork (multipart "artwork") ---------
+
+exports.uploadTrackArtwork = async (req, res) => {
+  const track = await Track.findByPk(req.params.id);
+  if (!track) return res.status(404).json({ error: "Track not found" });
+  const f = req.file;
+  if (!f || !/^image\//.test(f.mimetype)) {
+    return res.status(400).json({ error: "an image file is required" });
+  }
+  try {
+    const artworkPath = saveArtworkBuffer(f.buffer, f.mimetype);
+    await track.update({ artworkPath });
+    const fileTags = await syncFileTags(track, path.join(ARTWORK_DIR, path.basename(artworkPath)));
+    return res.json({ ...serializeTrack(track, []), fileTags });
+  } catch (err) {
+    logger.error("Track artwork upload failed", { error: String(err) });
+    return res.status(500).json({ error: String(err) });
+  }
+};
+
+// --- GET /api/v1/library/tracks/:id/audio ----------------------------------
+// The track's file, for previews and the studio's Deck Out monitor.
+
+exports.trackAudio = async (req, res) => {
+  const track = await Track.findByPk(req.params.id);
+  if (!track) return res.status(404).json({ error: "Track not found" });
+  const file = trackFile(track);
+  if (!fs.existsSync(file)) return res.status(404).json({ error: "audio file missing" });
+  return res.sendFile(file);
 };
 
 // --- DELETE /api/v1/library/tracks/:id -------------------------------------
@@ -452,10 +530,14 @@ exports.deleteTrack = async (req, res) => {
 };
 
 // --- POST /api/v1/library/bulk ---------------------------------------------
-// { action: "tag" | "delete" | "addToPlaylist", trackIds: [], tags?, playlistId? }
+// { action: "tag" | "delete" | "addToPlaylist" | "update", trackIds: [], tags?,
+//   playlistId?, fields? }  — "update" sets the given metadata fields
+//   (artist, album, composer, genre, year, type) on every track.
+
+const BULK_FIELDS = ["artist", "album", "composer", "genre", "year", "type"];
 
 exports.bulk = async (req, res) => {
-  const { action, trackIds, tags, playlistId } = req.body || {};
+  const { action, trackIds, tags, playlistId, fields } = req.body || {};
   if (!Array.isArray(trackIds) || trackIds.length === 0) {
     return res.status(400).json({ error: "trackIds is required" });
   }
@@ -524,6 +606,48 @@ exports.bulk = async (req, res) => {
         return items;
       });
       return res.json({ action, affected: created.length, playlistId });
+    }
+
+    if (action === "update") {
+      const patch = {};
+      for (const k of BULK_FIELDS) {
+        if (fields && fields[k] !== undefined) patch[k] = fields[k];
+      }
+      if (!Object.keys(patch).length) {
+        return res.status(400).json({ error: "fields is required" });
+      }
+      if (patch.type !== undefined && !TRACK_TYPES.includes(String(patch.type).toLowerCase())) {
+        return res.status(400).json({ error: "invalid type" });
+      }
+      if (patch.year !== undefined) patch.year = patch.year === "" || patch.year === null ? null : Number(patch.year);
+      if (patch.year !== null && patch.year !== undefined && !(Number.isInteger(patch.year) && patch.year > 0)) {
+        return res.status(400).json({ error: "year must be a number" });
+      }
+      const tracks = await Track.findAll({ where: { id: trackIds } });
+      let fileErrors = 0;
+      for (const track of tracks) {
+        await sequelize.transaction(async (transaction) => {
+          const updates = { ...patch };
+          if (updates.type) updates.type = String(updates.type).toLowerCase();
+          if (patch.artist !== undefined || patch.album !== undefined) {
+            const artistRow = await resolveArtist(
+              patch.artist !== undefined ? patch.artist : track.artist,
+              transaction
+            );
+            updates.artistId = artistRow ? artistRow.id : null;
+            const albumRow = await resolveAlbum(
+              patch.album !== undefined ? patch.album : track.album,
+              artistRow ? artistRow.id : null,
+              transaction
+            );
+            updates.albumId = albumRow ? albumRow.id : null;
+          }
+          await track.update(updates, { transaction });
+        });
+        const r = await syncFileTags(track);
+        if (!r.written) fileErrors += 1;
+      }
+      return res.json({ action, affected: tracks.length, fileErrors });
     }
 
     return res.status(400).json({ error: "Unknown action" });

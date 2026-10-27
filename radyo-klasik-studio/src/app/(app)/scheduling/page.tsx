@@ -184,7 +184,7 @@ function OnAirNow({ now }: { now: ScheduleNow | null }) {
     <div className="card flex items-center gap-3">
       <span
         className="h-3 w-3 rounded-full"
-        style={{ background: a?.color || (a ? "#f4632e" : "#3a414c") }}
+        style={{ background: a?.color || (a ? "#00EDA6" : "#C8DBD0") }}
       />
       {a ? (
         <div className="text-sm">

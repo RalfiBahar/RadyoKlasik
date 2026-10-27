@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { defaultSectionFor } from "@/lib/permissions";
+import Logo from "@/components/Logo";
 
 export default function LoginPage() {
   const { login, isAuthenticated, ready, role } = useAuth();
@@ -42,15 +43,18 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-ink-900 p-6">
+    <div className="flex min-h-screen items-center justify-center p-6">
       <form
         onSubmit={onSubmit}
         className="card w-full max-w-sm space-y-5"
         aria-label="Studio login"
       >
         <div className="text-center">
-          <div className="text-2xl font-bold tracking-tight text-brand">
-            ◈ Radyo Klasik Studio
+          <div className="flex justify-center">
+            <Logo className="h-14" />
+          </div>
+          <div className="mt-3 text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">
+            Station panel
           </div>
           <p className="mt-1 text-sm text-slate-400">{station}</p>
         </div>
