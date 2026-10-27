@@ -26,11 +26,13 @@ back working until the old setup is retired on purpose.
 3. **Short DNS TTL.** Lower the TTL of `api.` and `stream.` to 300 s at least a
    day before any switch, so a rollback takes ≤ 5 minutes.
 4. **Data flows both ways during the transition.** Legacy → new:
-   `scripts/importLegacy.js` (built, idempotent). New → legacy: a reverse sync
-   (`scripts/exportToLegacy.js`, **to build before stage 3**) that copies new
-   recordings, push tokens, chat and the announcement back into the legacy
-   SQLite + folders, so rolling back never loses what happened on the new
-   server.
+   `scripts/importLegacy.js` (built, idempotent). New → legacy: the reverse
+   sync `infra/scripts/sync-legacy.sh` (built; `exportToLegacy.js` +
+   `legacyApply.js`) copies new recordings (incl. ones only in R2), push
+   tokens, chat and the announcement back into the legacy SQLite + folders,
+   so rolling back never loses what happened on the new server. It only
+   writes data on legacy (never code), never deletes from its archive, keeps
+   `LEGACY_MIN_FREE_GB` free on its disk, and never lowers a play count.
 5. **One switch per stage**, each with a written, tested way back.
 6. **Don't merge the self-hosted work into `main` while legacy runs.** The
    droplet has a hand-run `~/update_radyo_klasik.sh` that does `git pull -f`
@@ -92,7 +94,12 @@ RadioJar URL and redeploy).
 
 ### Stage 3 — `api.` moves to the new server · then ≥ 2 weeks parallel
 
-- Build and test `exportToLegacy.js` (rule 4) first.
+- Set up the reverse sync (rule 4) first:
+  1. On the new server: `ssh-keygen -t ed25519` (if it has no key), then add
+     `~/.ssh/id_ed25519.pub` to the legacy droplet's
+     `/root/.ssh/authorized_keys` (the only change ever made on legacy).
+  2. In `infra/.env`: `LEGACY_SYNC_SINCE=<date of the switch>`.
+  3. `./scripts/sync-legacy.sh --dry-run` → read the report → run it for real.
 - Freeze for ~10 minutes: run `importLegacy.js` once more (catch-up), then
   change the `api.radyoklasik.online` A record to the new server and add
   `api-legacy.radyoklasik.online → 161.35.28.160` so legacy stays reachable.
@@ -100,12 +107,12 @@ RadioJar URL and redeploy).
   website **and the not-yet-updated mobile app** keep working: recordings,
   chat, announcement and push all come from the new server; the app still
   plays RadioJar.
-- Run `exportToLegacy.js` nightly (cron on the new server → legacy droplet
-  over SSH) so legacy stays a valid, current fallback.
+- Run `./scripts/sync-legacy.sh` nightly from cron on the new server (line
+  in the script's header) so legacy stays a valid, current fallback.
 - Run one **rollback drill** in this stage (below), at a quiet hour.
 
 **Rollback to everything-legacy (≈5–10 min):**
-1. Run `exportToLegacy.js` once (latest recordings/tokens/chat back to legacy).
+1. Run `./scripts/sync-legacy.sh` once (latest recordings/tokens/chat back to legacy).
 2. DNS: `api.radyoklasik.online` → `161.35.28.160`.
 3. Vercel: Instant Rollback (website back on RadioJar + legacy API).
 4. Announce nothing — listeners and the app keep working; tokens are valid
@@ -136,7 +143,21 @@ month ≈ **41 GB** (HD 192k ≈ 62 GB, low 64k ≈ 21 GB). "Listeners" below me
 the **average** number listening at any moment across the month (RadioJar's
 statistics show it).
 
-### Recommended: Hetzner + Cloudflare R2
+### Actual audience (RadioJar, 1 May – 26 Oct 2026) → decision
+
+7,924 listening hours over 179 days = **≈ 2 average listeners**; 445 GB in
+total = **≈ 75 GB/month**. Peaks are the Sunday programme (e.g. 25 Oct:
+1,109 sessions, 400 IPs, 294 h — roughly 70–80 at once). 87 % of listening
+is from Türkiye; 66 % of sessions are iPhone (mostly the app).
+
+So bandwidth is irrelevant: either provider's included traffic covers it
+50× over. **Decision: DigitalOcean Basic 2 vCPU / 4 GB / 80 GB in FRA1
+($24/month) + R2 (≈ $0)** — same account and region as today, Frankfurt is
+close to Türkiye, and Hetzner would save only a few dollars. Spaces is not
+needed (R2 instead). The tables below stay as the reference if the audience
+grows a lot.
+
+### Alternative: Hetzner + Cloudflare R2
 
 | Item | What | €/$ per month |
 |---|---|---|

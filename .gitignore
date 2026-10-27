@@ -67,3 +67,6 @@ RadyoKlasikServer/media/
 infra/backups/
 infra/backup/rclone/*.conf
 infra/legacy/
+
+# Reverse-sync staging (infra/scripts/sync-legacy.sh)
+infra/legacy-sync/

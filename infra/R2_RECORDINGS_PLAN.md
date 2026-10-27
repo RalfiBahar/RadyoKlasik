@@ -139,10 +139,10 @@ On the legacy droplet (reads only, changes nothing):
 du -sh ~/RadyoKlasik/RadyoKlasikServer/recordings ~/RadyoKlasik/RadyoKlasikServer/public/static/assets/thumbnails
 ```
 
-The legacy disk is 23 GB (85 % used), so
-the archive is at most ~20 GB: fits on the new server's 80 GB with room to
-spare, uploads in well under an hour, costs ≤ $0.15/month in R2 beyond the
-10 GB free tier.
+**Measured 27 Oct 2026: 13 GB.** Fits easily on the new server's 80 GB,
+copies from the droplet in roughly 5–15 minutes, uploads to R2 in well
+under an hour, and costs ≈ $0.05/month in R2 (3 GB beyond the 10 GB free
+tier). The legacy disk is 23 GB, 85 % used — the recordings are most of it.
 
 ### R3 — Migrate the existing archive (during deploy stage 1, staff only)
 
@@ -188,7 +188,7 @@ disk again; existing `r2` rows keep working from R2 (or `--back-to-local`).
    traffic for recordings drops to near zero.
 
 **Rollback to everything-legacy:** exactly as in `DEPLOY_PLAN.md` — run
-`exportToLegacy.js` (pulls new recordings from R2 onto the legacy disk),
+`scripts/sync-legacy.sh` (pulls new recordings from R2 onto the legacy disk),
 point DNS back. Legacy serves its own files and never knew about R2.
 
 ### R6 — Free the disk (≥ 7 days after R5, no rollback needed)
